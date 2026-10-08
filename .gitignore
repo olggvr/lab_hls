@@ -1,0 +1,15 @@
+target/
+.env
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# logs
+*.log

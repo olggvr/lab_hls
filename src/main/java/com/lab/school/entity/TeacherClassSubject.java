@@ -11,12 +11,17 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 /**
  * Many-to-Many с дополнительным полем: teachers <-> classes (+ subject, academic_year).
  */
 @Entity
 @Table(name = "teacher_class_subject")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class TeacherClassSubject {
 
     @Id
@@ -43,33 +48,10 @@ public class TeacherClassSubject {
     @Column(name = "academic_year", nullable = false, length = 9)
     private String academicYear;
 
-    protected TeacherClassSubject() {
-    }
-
     public TeacherClassSubject(Teacher teacher, SchoolClass schoolClass, Subject subject, String academicYear) {
         this.teacher = teacher;
         this.schoolClass = schoolClass;
         this.subject = subject;
         this.academicYear = academicYear;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public Teacher getTeacher() {
-        return teacher;
-    }
-
-    public SchoolClass getSchoolClass() {
-        return schoolClass;
-    }
-
-    public Subject getSubject() {
-        return subject;
-    }
-
-    public String getAcademicYear() {
-        return academicYear;
     }
 }

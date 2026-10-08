@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,13 +29,10 @@ import static com.lab.school.dto.common.PaginationConstants.MAX_PAGE_SIZE;
 @Tag(name = "Subjects", description = "Учебные предметы")
 @RestController
 @RequestMapping("/api/subjects")
+@RequiredArgsConstructor
 public class SubjectController {
 
     private final SubjectService subjectService;
-
-    public SubjectController(SubjectService subjectService) {
-        this.subjectService = subjectService;
-    }
 
     @Operation(summary = "Список предметов (постранично, не более 50)")
     @GetMapping

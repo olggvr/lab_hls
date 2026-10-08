@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,13 +29,10 @@ import static com.lab.school.dto.common.PaginationConstants.MAX_PAGE_SIZE;
 @Tag(name = "Parents", description = "Родители")
 @RestController
 @RequestMapping("/api/parents")
+@RequiredArgsConstructor
 public class ParentController {
 
     private final ParentService parentService;
-
-    public ParentController(ParentService parentService) {
-        this.parentService = parentService;
-    }
 
     @Operation(summary = "Список родителей (постранично, не более 50)")
     @GetMapping

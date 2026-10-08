@@ -10,6 +10,9 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotNull;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
@@ -18,6 +21,8 @@ import java.time.LocalDateTime;
  */
 @Entity
 @Table(name = "message_recipients")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class MessageRecipient {
 
     @Id
@@ -40,9 +45,6 @@ public class MessageRecipient {
     @Column(name = "read_at")
     private LocalDateTime readAt;
 
-    protected MessageRecipient() {
-    }
-
     public MessageRecipient(Message message, User user) {
         this.message = message;
         this.user = user;
@@ -53,25 +55,5 @@ public class MessageRecipient {
             read = true;
             readAt = LocalDateTime.now();
         }
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public Message getMessage() {
-        return message;
-    }
-
-    public User getUser() {
-        return user;
-    }
-
-    public boolean isRead() {
-        return read;
-    }
-
-    public LocalDateTime getReadAt() {
-        return readAt;
     }
 }

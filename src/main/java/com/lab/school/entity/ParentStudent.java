@@ -13,12 +13,18 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotNull;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 /**
  * Many-to-Many с дополнительным полем: parents <-> students (+ relation).
  */
 @Entity
 @Table(name = "parent_student")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ParentStudent {
 
     @Id
@@ -38,34 +44,12 @@ public class ParentStudent {
     @NotNull
     @Enumerated(EnumType.STRING)
     @Column(name = "relation", nullable = false, length = 20)
+    @Setter
     private ParentRelation relation;
-
-    protected ParentStudent() {
-    }
 
     public ParentStudent(Parent parent, Student student, ParentRelation relation) {
         this.parent = parent;
         this.student = student;
-        this.relation = relation;
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public Parent getParent() {
-        return parent;
-    }
-
-    public Student getStudent() {
-        return student;
-    }
-
-    public ParentRelation getRelation() {
-        return relation;
-    }
-
-    public void setRelation(ParentRelation relation) {
         this.relation = relation;
     }
 }

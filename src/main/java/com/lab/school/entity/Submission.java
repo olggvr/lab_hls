@@ -18,6 +18,8 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.time.LocalDateTime;
 
@@ -26,6 +28,8 @@ import java.time.LocalDateTime;
  */
 @Entity
 @Table(name = "submissions")
+@Getter
+@Setter
 public class Submission {
 
     @Id
@@ -73,67 +77,4 @@ public class Submission {
         }
     }
 
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Assignment getAssignment() {
-        return assignment;
-    }
-
-    public void setAssignment(Assignment assignment) {
-        this.assignment = assignment;
-    }
-
-    public Student getStudent() {
-        return student;
-    }
-
-    public void setStudent(Student student) {
-        this.student = student;
-    }
-
-    public String getContentUrl() {
-        return contentUrl;
-    }
-
-    public void setContentUrl(String contentUrl) {
-        this.contentUrl = contentUrl;
-    }
-
-    public LocalDateTime getSubmittedAt() {
-        return submittedAt;
-    }
-
-    public void setSubmittedAt(LocalDateTime submittedAt) {
-        this.submittedAt = submittedAt;
-    }
-
-    public Integer getGrade() {
-        return grade;
-    }
-
-    public void setGrade(Integer grade) {
-        this.grade = grade;
-    }
-
-    public SubmissionStatus getStatus() {
-        return status;
-    }
-
-    public void setStatus(SubmissionStatus status) {
-        this.status = status;
-    }
-
-    public LocalDateTime getGradedAt() {
-        return gradedAt;
-    }
-
-    public void setGradedAt(LocalDateTime gradedAt) {
-        this.gradedAt = gradedAt;
-    }
 }

@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -36,13 +37,10 @@ import static com.lab.school.dto.common.PaginationConstants.TOTAL_COUNT_HEADER;
 @Tag(name = "Students", description = "Ученики и связь с родителями")
 @RestController
 @RequestMapping("/api/students")
+@RequiredArgsConstructor
 public class StudentController {
 
     private final StudentService studentService;
-
-    public StudentController(StudentService studentService) {
-        this.studentService = studentService;
-    }
 
     @Operation(summary = "Список учеников (постранично, не более 50)")
     @GetMapping

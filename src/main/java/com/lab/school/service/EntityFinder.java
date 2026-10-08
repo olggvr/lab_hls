@@ -15,12 +15,14 @@ import com.lab.school.repository.StudentRepository;
 import com.lab.school.repository.SubjectRepository;
 import com.lab.school.repository.TeacherRepository;
 import com.lab.school.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
  * Общие методы "найти или 404", чтобы не дублировать их в каждом сервисе.
  */
 @Component
+@RequiredArgsConstructor
 public class EntityFinder {
 
     private final UserRepository userRepository;
@@ -30,22 +32,6 @@ public class EntityFinder {
     private final StudentRepository studentRepository;
     private final ParentRepository parentRepository;
     private final AssignmentRepository assignmentRepository;
-
-    public EntityFinder(UserRepository userRepository,
-                        SubjectRepository subjectRepository,
-                        SchoolClassRepository schoolClassRepository,
-                        TeacherRepository teacherRepository,
-                        StudentRepository studentRepository,
-                        ParentRepository parentRepository,
-                        AssignmentRepository assignmentRepository) {
-        this.userRepository = userRepository;
-        this.subjectRepository = subjectRepository;
-        this.schoolClassRepository = schoolClassRepository;
-        this.teacherRepository = teacherRepository;
-        this.studentRepository = studentRepository;
-        this.parentRepository = parentRepository;
-        this.assignmentRepository = assignmentRepository;
-    }
 
     public User user(Long id) {
         return userRepository.findById(id).orElseThrow(() -> new NotFoundException("Пользователь", id));

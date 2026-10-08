@@ -9,6 +9,7 @@ import com.lab.school.mapper.SchoolClassMapper;
 import com.lab.school.mapper.StudentMapper;
 import com.lab.school.repository.SchoolClassRepository;
 import com.lab.school.repository.StudentRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +18,7 @@ import java.util.List;
 
 @Service
 @Transactional(readOnly = true)
+@RequiredArgsConstructor
 public class SchoolClassService {
 
     private final SchoolClassRepository schoolClassRepository;
@@ -24,18 +26,6 @@ public class SchoolClassService {
     private final SchoolClassMapper schoolClassMapper;
     private final StudentMapper studentMapper;
     private final EntityFinder finder;
-
-    public SchoolClassService(SchoolClassRepository schoolClassRepository,
-                              StudentRepository studentRepository,
-                              SchoolClassMapper schoolClassMapper,
-                              StudentMapper studentMapper,
-                              EntityFinder finder) {
-        this.schoolClassRepository = schoolClassRepository;
-        this.studentRepository = studentRepository;
-        this.schoolClassMapper = schoolClassMapper;
-        this.studentMapper = studentMapper;
-        this.finder = finder;
-    }
 
     public Page<SchoolClassResponse> findAll(int page, int size) {
         return schoolClassRepository.findAll(PageRequests.byId(page, size)).map(schoolClassMapper::toResponse);

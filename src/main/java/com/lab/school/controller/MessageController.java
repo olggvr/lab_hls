@@ -11,6 +11,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Positive;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -32,13 +33,10 @@ import static com.lab.school.dto.common.PaginationConstants.MAX_PAGE_SIZE;
 @Tag(name = "Messages", description = "Сообщения и массовые рассылки")
 @RestController
 @RequestMapping("/api/messages")
+@RequiredArgsConstructor
 public class MessageController {
 
     private final MessageService messageService;
-
-    public MessageController(MessageService messageService) {
-        this.messageService = messageService;
-    }
 
     @Operation(summary = "Отправить личное сообщение одному или нескольким пользователям")
     @PostMapping

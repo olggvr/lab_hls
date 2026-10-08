@@ -10,6 +10,7 @@ import com.lab.school.exception.ConflictException;
 import com.lab.school.mapper.ParentMapper;
 import com.lab.school.repository.ParentRepository;
 import com.lab.school.repository.ParentStudentRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,22 +19,13 @@ import java.util.List;
 
 @Service
 @Transactional(readOnly = true)
+@RequiredArgsConstructor
 public class ParentService {
 
     private final ParentRepository parentRepository;
     private final ParentStudentRepository parentStudentRepository;
     private final ParentMapper parentMapper;
     private final EntityFinder finder;
-
-    public ParentService(ParentRepository parentRepository,
-                         ParentStudentRepository parentStudentRepository,
-                         ParentMapper parentMapper,
-                         EntityFinder finder) {
-        this.parentRepository = parentRepository;
-        this.parentStudentRepository = parentStudentRepository;
-        this.parentMapper = parentMapper;
-        this.finder = finder;
-    }
 
     public Page<ParentResponse> findAll(int page, int size) {
         return parentRepository.findAll(PageRequests.byId(page, size)).map(parentMapper::toResponse);

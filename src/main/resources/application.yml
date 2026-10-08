@@ -1,0 +1,46 @@
+server:
+  port: ${APP_PORT:8080}
+  error:
+    include-message: always
+
+spring:
+  application:
+    name: school-management
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/school}
+    username: ${DB_USER:school}
+    password: ${DB_PASSWORD:school}
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Схемой владеет Liquibase, Hibernate её не трогает
+      ddl-auto: none
+    properties:
+      hibernate:
+        format_sql: true
+
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    # demo — дополнительно загрузить демо-данные (учителя, ученики, родители, ДЗ)
+    contexts: ${LIQUIBASE_CONTEXTS:demo}
+
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    operations-sorter: method
+    tags-sorter: alpha
+    display-request-duration: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

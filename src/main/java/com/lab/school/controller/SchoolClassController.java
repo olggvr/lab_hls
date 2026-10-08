@@ -2,6 +2,7 @@ package com.lab.school.controller;
 
 import com.lab.school.dto.schoolclass.SchoolClassRequest;
 import com.lab.school.dto.schoolclass.SchoolClassResponse;
+import com.lab.school.dto.student.StudentResponse;
 import com.lab.school.service.SchoolClassService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -48,6 +49,12 @@ public class SchoolClassController {
     @GetMapping("/{id}")
     public SchoolClassResponse getById(@PathVariable Long id) {
         return schoolClassService.getById(id);
+    }
+
+    @Operation(summary = "Ученики класса (One-to-Many classes -> students)")
+    @GetMapping("/{id}/students")
+    public List<StudentResponse> students(@PathVariable Long id) {
+        return schoolClassService.getStudents(id);
     }
 
     @Operation(summary = "Создать класс")

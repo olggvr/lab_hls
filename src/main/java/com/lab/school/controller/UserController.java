@@ -1,10 +1,12 @@
 package com.lab.school.controller;
 
+import com.lab.school.dto.user.GradeEntryResponse;
 import com.lab.school.dto.user.RoleRequest;
 import com.lab.school.dto.user.UserCreateRequest;
 import com.lab.school.dto.user.UserResponse;
 import com.lab.school.dto.user.UserUpdateRequest;
 import com.lab.school.entity.enums.UserRole;
+import com.lab.school.service.GradeService;
 import com.lab.school.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -34,9 +36,11 @@ import static com.lab.school.dto.common.PaginationConstants.MAX_PAGE_SIZE;
 public class UserController {
 
     private final UserService userService;
+    private final GradeService gradeService;
 
-    public UserController(UserService userService) {
+    public UserController(UserService userService, GradeService gradeService) {
         this.userService = userService;
+        this.gradeService = gradeService;
     }
 
     @Operation(summary = "Список пользователей (постранично, не более 50)")
@@ -85,4 +89,9 @@ public class UserController {
         return userService.removeRole(id, role);
     }
 
+    @Operation(summary = "Оценки пользователя: ученик — свои, родитель — детей, учитель — по своим заданиям")
+    @GetMapping("/{id}/grades")
+    public List<GradeEntryResponse> grades(@PathVariable Long id) {
+        return gradeService.getGradesForUser(id);
+    }
 }

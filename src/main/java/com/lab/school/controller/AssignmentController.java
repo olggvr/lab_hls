@@ -3,10 +3,13 @@ package com.lab.school.controller;
 import com.lab.school.dto.assignment.AssignmentCreateRequest;
 import com.lab.school.dto.assignment.AssignmentResponse;
 import com.lab.school.dto.assignment.AssignmentUpdateRequest;
+import com.lab.school.dto.assignment.GradeRequest;
+import com.lab.school.dto.assignment.GradeResponse;
 import com.lab.school.dto.assignment.SubmissionCreateRequest;
 import com.lab.school.dto.assignment.SubmissionResponse;
 import com.lab.school.dto.common.CursorPage;
 import com.lab.school.service.AssignmentService;
+import com.lab.school.service.GradeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.headers.Header;
@@ -42,9 +45,11 @@ import static com.lab.school.dto.common.PaginationConstants.TOTAL_COUNT_HEADER;
 public class AssignmentController {
 
     private final AssignmentService assignmentService;
+    private final GradeService gradeService;
 
-    public AssignmentController(AssignmentService assignmentService) {
+    public AssignmentController(AssignmentService assignmentService, GradeService gradeService) {
         this.assignmentService = assignmentService;
+        this.gradeService = gradeService;
     }
 
     @Operation(summary = "Лента ДЗ для infinite scroll (без общего количества)",
@@ -109,4 +114,9 @@ public class AssignmentController {
         return assignmentService.getSubmissions(id);
     }
 
+    @Operation(summary = "Выставить оценку и уведомить ученика и родителей (одна транзакция)")
+    @PostMapping("/{id}/grade")
+    public GradeResponse grade(@PathVariable Long id, @Valid @RequestBody GradeRequest request) {
+        return gradeService.grade(id, request);
+    }
 }

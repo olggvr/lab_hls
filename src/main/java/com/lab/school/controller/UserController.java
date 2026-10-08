@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,15 +34,11 @@ import static com.lab.school.dto.common.PaginationConstants.MAX_PAGE_SIZE;
 @Tag(name = "Users", description = "Пользователи и их роли")
 @RestController
 @RequestMapping("/api/users")
+@RequiredArgsConstructor
 public class UserController {
 
     private final UserService userService;
     private final GradeService gradeService;
-
-    public UserController(UserService userService, GradeService gradeService) {
-        this.userService = userService;
-        this.gradeService = gradeService;
-    }
 
     @Operation(summary = "Список пользователей (постранично, не более 50)")
     @GetMapping

@@ -20,6 +20,7 @@ import com.lab.school.repository.ParentStudentRepository;
 import com.lab.school.repository.StudentRepository;
 import com.lab.school.repository.SubmissionRepository;
 import com.lab.school.repository.TeacherRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +29,7 @@ import java.util.List;
 
 @Service
 @Transactional(readOnly = true)
+@RequiredArgsConstructor
 public class GradeService {
 
     private final SubmissionRepository submissionRepository;
@@ -38,24 +40,6 @@ public class GradeService {
     private final TeacherRepository teacherRepository;
     private final AssignmentMapper assignmentMapper;
     private final EntityFinder finder;
-
-    public GradeService(SubmissionRepository submissionRepository,
-                        ParentStudentRepository parentStudentRepository,
-                        MessageRepository messageRepository,
-                        StudentRepository studentRepository,
-                        ParentRepository parentRepository,
-                        TeacherRepository teacherRepository,
-                        AssignmentMapper assignmentMapper,
-                        EntityFinder finder) {
-        this.submissionRepository = submissionRepository;
-        this.parentStudentRepository = parentStudentRepository;
-        this.messageRepository = messageRepository;
-        this.studentRepository = studentRepository;
-        this.parentRepository = parentRepository;
-        this.teacherRepository = teacherRepository;
-        this.assignmentMapper = assignmentMapper;
-        this.finder = finder;
-    }
 
     /**
      * ТРАНЗАКЦИЯ №1: выставление оценки + уведомление ученика и его родителей.

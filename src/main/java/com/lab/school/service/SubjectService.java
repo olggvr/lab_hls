@@ -6,23 +6,19 @@ import com.lab.school.entity.Subject;
 import com.lab.school.exception.ConflictException;
 import com.lab.school.mapper.SubjectMapper;
 import com.lab.school.repository.SubjectRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional(readOnly = true)
+@RequiredArgsConstructor
 public class SubjectService {
 
     private final SubjectRepository subjectRepository;
     private final SubjectMapper subjectMapper;
     private final EntityFinder finder;
-
-    public SubjectService(SubjectRepository subjectRepository, SubjectMapper subjectMapper, EntityFinder finder) {
-        this.subjectRepository = subjectRepository;
-        this.subjectMapper = subjectMapper;
-        this.finder = finder;
-    }
 
     public Page<SubjectResponse> findAll(int page, int size) {
         return subjectRepository.findAll(PageRequests.byId(page, size)).map(subjectMapper::toResponse);

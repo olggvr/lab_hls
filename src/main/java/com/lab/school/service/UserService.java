@@ -11,6 +11,7 @@ import com.lab.school.exception.ConflictException;
 import com.lab.school.mapper.UserMapper;
 import com.lab.school.repository.RoleRepository;
 import com.lab.school.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional(readOnly = true)
+@RequiredArgsConstructor
 public class UserService {
 
     private final UserRepository userRepository;
@@ -25,18 +27,6 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
     private final EntityFinder finder;
-
-    public UserService(UserRepository userRepository,
-                       RoleRepository roleRepository,
-                       PasswordEncoder passwordEncoder,
-                       UserMapper userMapper,
-                       EntityFinder finder) {
-        this.userRepository = userRepository;
-        this.roleRepository = roleRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.userMapper = userMapper;
-        this.finder = finder;
-    }
 
     public Page<UserResponse> findAll(int page, int size) {
         return userRepository.findAll(PageRequests.byId(page, size)).map(userMapper::toResponse);

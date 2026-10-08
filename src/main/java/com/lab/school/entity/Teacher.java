@@ -11,21 +11,26 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotNull;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Entity
 @Table(name = "teachers")
+@Getter
 public class Teacher {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Setter
     private Long id;
 
     @NotNull
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false, unique = true)
+    @Setter
     private User user;
 
     /**
@@ -33,6 +38,7 @@ public class Teacher {
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "subject_id")
+    @Setter
     private Subject subject;
 
     /**
@@ -46,36 +52,4 @@ public class Teacher {
      */
     @OneToMany(mappedBy = "teacher")
     private List<TeacherClassSubject> workload = new ArrayList<>();
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public User getUser() {
-        return user;
-    }
-
-    public void setUser(User user) {
-        this.user = user;
-    }
-
-    public Subject getSubject() {
-        return subject;
-    }
-
-    public void setSubject(Subject subject) {
-        this.subject = subject;
-    }
-
-    public List<Assignment> getAssignments() {
-        return assignments;
-    }
-
-    public List<TeacherClassSubject> getWorkload() {
-        return workload;
-    }
 }

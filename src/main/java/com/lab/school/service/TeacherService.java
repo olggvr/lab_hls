@@ -16,6 +16,7 @@ import com.lab.school.exception.NotFoundException;
 import com.lab.school.mapper.TeacherMapper;
 import com.lab.school.repository.TeacherClassSubjectRepository;
 import com.lab.school.repository.TeacherRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,22 +25,13 @@ import java.util.List;
 
 @Service
 @Transactional(readOnly = true)
+@RequiredArgsConstructor
 public class TeacherService {
 
     private final TeacherRepository teacherRepository;
     private final TeacherClassSubjectRepository workloadRepository;
     private final TeacherMapper teacherMapper;
     private final EntityFinder finder;
-
-    public TeacherService(TeacherRepository teacherRepository,
-                          TeacherClassSubjectRepository workloadRepository,
-                          TeacherMapper teacherMapper,
-                          EntityFinder finder) {
-        this.teacherRepository = teacherRepository;
-        this.workloadRepository = workloadRepository;
-        this.teacherMapper = teacherMapper;
-        this.finder = finder;
-    }
 
     public Page<TeacherResponse> findAll(int page, int size) {
         return teacherRepository.findAll(PageRequests.byId(page, size)).map(teacherMapper::toResponse);

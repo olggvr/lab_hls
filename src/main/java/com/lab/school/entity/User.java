@@ -18,6 +18,8 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -25,40 +27,48 @@ import java.util.Set;
 
 @Entity
 @Table(name = "users")
+@Getter
 public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Setter
     private Long id;
 
     @NotBlank
     @Size(min = 3, max = 50)
     @Column(name = "username", nullable = false, unique = true, length = 50)
+    @Setter
     private String username;
 
     @NotBlank
     @Size(max = 100)
     @Column(name = "password_hash", nullable = false, length = 100)
+    @Setter
     private String passwordHash;
 
     @NotBlank
     @Size(max = 150)
     @Column(name = "full_name", nullable = false, length = 150)
+    @Setter
     private String fullName;
 
     @NotBlank
     @Email
     @Size(max = 150)
     @Column(name = "email", nullable = false, unique = true, length = 150)
+    @Setter
     private String email;
 
     @Size(max = 20)
     @Column(name = "phone", length = 20)
+    @Setter
     private String phone;
 
     @NotNull
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false, length = 32)
+    @Setter
     private UserRole role;
 
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -83,69 +93,5 @@ public class User {
 
     public boolean hasRole(UserRole roleName) {
         return roles.stream().anyMatch(r -> r.getName() == roleName);
-    }
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getUsername() {
-        return username;
-    }
-
-    public void setUsername(String username) {
-        this.username = username;
-    }
-
-    public String getPasswordHash() {
-        return passwordHash;
-    }
-
-    public void setPasswordHash(String passwordHash) {
-        this.passwordHash = passwordHash;
-    }
-
-    public String getFullName() {
-        return fullName;
-    }
-
-    public void setFullName(String fullName) {
-        this.fullName = fullName;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public void setEmail(String email) {
-        this.email = email;
-    }
-
-    public String getPhone() {
-        return phone;
-    }
-
-    public void setPhone(String phone) {
-        this.phone = phone;
-    }
-
-    public UserRole getRole() {
-        return role;
-    }
-
-    public void setRole(UserRole role) {
-        this.role = role;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public Set<Role> getRoles() {
-        return roles;
     }
 }

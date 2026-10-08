@@ -20,6 +20,7 @@ import com.lab.school.repository.MessageRepository;
 import com.lab.school.repository.ParentStudentRepository;
 import com.lab.school.repository.StudentRepository;
 import com.lab.school.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +33,7 @@ import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
+@RequiredArgsConstructor
 public class MessageService {
 
     private final MessageRepository messageRepository;
@@ -41,22 +43,6 @@ public class MessageService {
     private final ParentStudentRepository parentStudentRepository;
     private final MessageMapper messageMapper;
     private final EntityFinder finder;
-
-    public MessageService(MessageRepository messageRepository,
-                          MessageRecipientRepository recipientRepository,
-                          UserRepository userRepository,
-                          StudentRepository studentRepository,
-                          ParentStudentRepository parentStudentRepository,
-                          MessageMapper messageMapper,
-                          EntityFinder finder) {
-        this.messageRepository = messageRepository;
-        this.recipientRepository = recipientRepository;
-        this.userRepository = userRepository;
-        this.studentRepository = studentRepository;
-        this.parentStudentRepository = parentStudentRepository;
-        this.messageMapper = messageMapper;
-        this.finder = finder;
-    }
 
     public MessageResponse getById(Long id) {
         Message message = messageRepository.findById(id)

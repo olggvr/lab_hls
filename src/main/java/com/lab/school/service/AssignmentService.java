@@ -20,6 +20,7 @@ import com.lab.school.mapper.AssignmentMapper;
 import com.lab.school.repository.AssignmentRepository;
 import com.lab.school.repository.SubmissionRepository;
 import com.lab.school.repository.TeacherClassSubjectRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -32,6 +33,7 @@ import java.util.Objects;
 
 @Service
 @Transactional(readOnly = true)
+@RequiredArgsConstructor
 public class AssignmentService {
 
     private final AssignmentRepository assignmentRepository;
@@ -39,18 +41,6 @@ public class AssignmentService {
     private final TeacherClassSubjectRepository workloadRepository;
     private final AssignmentMapper assignmentMapper;
     private final EntityFinder finder;
-
-    public AssignmentService(AssignmentRepository assignmentRepository,
-                             SubmissionRepository submissionRepository,
-                             TeacherClassSubjectRepository workloadRepository,
-                             AssignmentMapper assignmentMapper,
-                             EntityFinder finder) {
-        this.assignmentRepository = assignmentRepository;
-        this.submissionRepository = submissionRepository;
-        this.workloadRepository = workloadRepository;
-        this.assignmentMapper = assignmentMapper;
-        this.finder = finder;
-    }
 
     /**
      * Infinite scroll: keyset-пагинация по id (от новых к старым), без подсчёта общего количества.

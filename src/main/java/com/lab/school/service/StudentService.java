@@ -16,6 +16,7 @@ import com.lab.school.mapper.ParentMapper;
 import com.lab.school.mapper.StudentMapper;
 import com.lab.school.repository.ParentStudentRepository;
 import com.lab.school.repository.StudentRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +25,7 @@ import java.util.List;
 
 @Service
 @Transactional(readOnly = true)
+@RequiredArgsConstructor
 public class StudentService {
 
     private final StudentRepository studentRepository;
@@ -31,18 +33,6 @@ public class StudentService {
     private final StudentMapper studentMapper;
     private final ParentMapper parentMapper;
     private final EntityFinder finder;
-
-    public StudentService(StudentRepository studentRepository,
-                          ParentStudentRepository parentStudentRepository,
-                          StudentMapper studentMapper,
-                          ParentMapper parentMapper,
-                          EntityFinder finder) {
-        this.studentRepository = studentRepository;
-        this.parentStudentRepository = parentStudentRepository;
-        this.studentMapper = studentMapper;
-        this.parentMapper = parentMapper;
-        this.finder = finder;
-    }
 
     public Page<StudentResponse> findAll(int page, int size) {
         return studentRepository.findAll(PageRequests.byId(page, size)).map(studentMapper::toResponse);

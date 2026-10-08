@@ -19,6 +19,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Positive;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -42,15 +43,11 @@ import static com.lab.school.dto.common.PaginationConstants.TOTAL_COUNT_HEADER;
 @Tag(name = "Assignments", description = "Домашние задания, решения и оценки")
 @RestController
 @RequestMapping("/api/assignments")
+@RequiredArgsConstructor
 public class AssignmentController {
 
     private final AssignmentService assignmentService;
     private final GradeService gradeService;
-
-    public AssignmentController(AssignmentService assignmentService, GradeService gradeService) {
-        this.assignmentService = assignmentService;
-        this.gradeService = gradeService;
-    }
 
     @Operation(summary = "Лента ДЗ для infinite scroll (без общего количества)",
             description = "Первый запрос — без cursor. Следующие — с cursor = nextCursor из предыдущего ответа.")

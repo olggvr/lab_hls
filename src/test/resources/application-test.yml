@@ -1,0 +1,8 @@
+spring:
+  liquibase:
+    # Демо-данные (context "demo") в тестах не грузим — каждый тест создаёт свои данные
+    contexts: test
+
+logging:
+  level:
+    org.hibernate.SQL: warn

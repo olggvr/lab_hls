@@ -1,6 +1,7 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    # Версия базы зафиксирована точным тегом — такая же, как в Testcontainers
+    image: postgres:16.4-alpine
     container_name: school-postgres
     restart: unless-stopped
     environment:

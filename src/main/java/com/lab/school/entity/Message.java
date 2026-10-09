@@ -60,7 +60,7 @@ public class Message {
     private LocalDateTime createdAt;
 
     /**
-     * Получатели (M:N messages <-> users с доп. полями is_read / read_at).
+     * Получатели (M:N messages &lt;-&gt; users с доп. полями is_read / read_at).
      * Сохраняются каскадно вместе с сообщением — в одной транзакции.
      */
     @OneToMany(mappedBy = "message", cascade = CascadeType.ALL, orphanRemoval = true)

@@ -17,7 +17,7 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 /**
- * Many-to-Many с дополнительными полями: messages <-> users (+ is_read, read_at).
+ * Many-to-Many с дополнительными полями: messages &lt;-&gt; users (+ is_read, read_at).
  */
 @Entity
 @Table(name = "message_recipients")

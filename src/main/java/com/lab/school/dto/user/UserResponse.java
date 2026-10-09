@@ -5,9 +5,6 @@ import com.lab.school.entity.enums.UserRole;
 import java.time.LocalDateTime;
 import java.util.Set;
 
-/**
- * Пароль (и его хеш) в ответах не отдаётся никогда.
- */
 public record UserResponse(
         Long id,
         String username,

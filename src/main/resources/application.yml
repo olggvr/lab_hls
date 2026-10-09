@@ -15,8 +15,10 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      # Схемой владеет Liquibase, Hibernate её не трогает
-      ddl-auto: none
+      # Схемой владеет Liquibase, Hibernate её не меняет, но после миграций проверяет,
+      # что таблицы и колонки сущностей совпадают с тем, что реально есть в базе.
+      # Расхождение модели и миграции => приложение не стартует.
+      ddl-auto: validate
     properties:
       hibernate:
         format_sql: true

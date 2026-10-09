@@ -3,6 +3,7 @@ package com.lab.school.controller;
 import com.lab.school.dto.subject.SubjectRequest;
 import com.lab.school.dto.subject.SubjectResponse;
 import com.lab.school.service.SubjectService;
+import com.lab.school.utils.Locations;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -22,49 +23,50 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-import static com.lab.school.dto.common.PaginationConstants.DEFAULT_PAGE;
-import static com.lab.school.dto.common.PaginationConstants.DEFAULT_PAGE_SIZE;
-import static com.lab.school.dto.common.PaginationConstants.MAX_PAGE_SIZE;
+import static com.lab.school.utils.PaginationConstants.DEFAULT_PAGE;
+import static com.lab.school.utils.PaginationConstants.DEFAULT_PAGE_SIZE;
+import static com.lab.school.utils.PaginationConstants.MAX_PAGE_SIZE;
 
 @Tag(name = "Subjects", description = "Учебные предметы")
 @RestController
-@RequestMapping("/api/subjects")
 @RequiredArgsConstructor
+@RequestMapping("/api/subjects")
 public class SubjectController {
 
     private final SubjectService subjectService;
 
     @Operation(summary = "Список предметов (постранично, не более 50)")
     @GetMapping
-    public List<SubjectResponse> findAll(
+    public ResponseEntity<List<SubjectResponse>> listSubjects(
             @RequestParam(defaultValue = DEFAULT_PAGE) @Min(0) int page,
             @RequestParam(defaultValue = DEFAULT_PAGE_SIZE) @Min(1) @Max(MAX_PAGE_SIZE) int size) {
-        return subjectService.findAll(page, size).getContent();
+        return ResponseEntity.ok(subjectService.listSubjects(page, size).getContent());
     }
 
     @Operation(summary = "Предмет по id")
     @GetMapping("/{id}")
-    public SubjectResponse getById(@PathVariable Long id) {
-        return subjectService.getById(id);
+    public ResponseEntity<SubjectResponse> getSubject(@PathVariable Long id) {
+        return ResponseEntity.ok(subjectService.getSubject(id));
     }
 
     @Operation(summary = "Создать предмет")
     @PostMapping
-    public ResponseEntity<SubjectResponse> create(@Valid @RequestBody SubjectRequest request) {
-        SubjectResponse created = subjectService.create(request);
-        return ResponseEntity.created(Locations.of(created.id())).body(created);
+    public ResponseEntity<SubjectResponse> createSubject(@Valid @RequestBody SubjectRequest request) {
+        SubjectResponse created = subjectService.createSubject(request);
+        return ResponseEntity.created(Locations.buildFor(created.id())).body(created);
     }
 
     @Operation(summary = "Переименовать предмет")
     @PutMapping("/{id}")
-    public SubjectResponse update(@PathVariable Long id, @Valid @RequestBody SubjectRequest request) {
-        return subjectService.update(id, request);
+    public ResponseEntity<SubjectResponse> updateSubject(@PathVariable Long id,
+                                                         @Valid @RequestBody SubjectRequest request) {
+        return ResponseEntity.ok(subjectService.updateSubject(id, request));
     }
 
     @Operation(summary = "Удалить предмет")
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        subjectService.delete(id);
+    public ResponseEntity<Void> deleteSubject(@PathVariable Long id) {
+        subjectService.deleteSubject(id);
         return ResponseEntity.noContent().build();
     }
 }

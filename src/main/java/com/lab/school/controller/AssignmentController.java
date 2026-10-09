@@ -10,6 +10,7 @@ import com.lab.school.dto.assignment.SubmissionResponse;
 import com.lab.school.dto.common.CursorPage;
 import com.lab.school.service.AssignmentService;
 import com.lab.school.service.GradeService;
+import com.lab.school.utils.Locations;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.headers.Header;
@@ -35,15 +36,15 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-import static com.lab.school.dto.common.PaginationConstants.DEFAULT_PAGE;
-import static com.lab.school.dto.common.PaginationConstants.DEFAULT_PAGE_SIZE;
-import static com.lab.school.dto.common.PaginationConstants.MAX_PAGE_SIZE;
-import static com.lab.school.dto.common.PaginationConstants.TOTAL_COUNT_HEADER;
+import static com.lab.school.utils.PaginationConstants.DEFAULT_PAGE;
+import static com.lab.school.utils.PaginationConstants.DEFAULT_PAGE_SIZE;
+import static com.lab.school.utils.PaginationConstants.MAX_PAGE_SIZE;
+import static com.lab.school.utils.PaginationConstants.TOTAL_COUNT_HEADER;
 
 @Tag(name = "Assignments", description = "Домашние задания, решения и оценки")
 @RestController
-@RequestMapping("/api/assignments")
 @RequiredArgsConstructor
+@RequestMapping("/api/assignments")
 public class AssignmentController {
 
     private final AssignmentService assignmentService;
@@ -52,21 +53,21 @@ public class AssignmentController {
     @Operation(summary = "Лента ДЗ для infinite scroll (без общего количества)",
             description = "Первый запрос — без cursor. Следующие — с cursor = nextCursor из предыдущего ответа.")
     @GetMapping
-    public CursorPage<AssignmentResponse> scroll(
+    public ResponseEntity<CursorPage<AssignmentResponse>> scrollAssignments(
             @Parameter(description = "id последнего полученного задания")
             @RequestParam(required = false) @Positive Long cursor,
             @RequestParam(defaultValue = DEFAULT_PAGE_SIZE) @Min(1) @Max(MAX_PAGE_SIZE) int size) {
-        return assignmentService.scroll(cursor, size);
+        return ResponseEntity.ok(assignmentService.scrollAssignments(cursor, size));
     }
 
     @Operation(summary = "Список ДЗ постранично с общим количеством в заголовке X-Total-Count",
             responses = @ApiResponse(responseCode = "200", headers = @Header(name = TOTAL_COUNT_HEADER,
                     description = "Общее количество заданий")))
     @GetMapping("/page")
-    public ResponseEntity<List<AssignmentResponse>> page(
+    public ResponseEntity<List<AssignmentResponse>> listAssignmentsPage(
             @RequestParam(defaultValue = DEFAULT_PAGE) @Min(0) int page,
             @RequestParam(defaultValue = DEFAULT_PAGE_SIZE) @Min(1) @Max(MAX_PAGE_SIZE) int size) {
-        Page<AssignmentResponse> result = assignmentService.findPage(page, size);
+        Page<AssignmentResponse> result = assignmentService.listAssignmentsPage(page, size);
         return ResponseEntity.ok()
                 .header(TOTAL_COUNT_HEADER, String.valueOf(result.getTotalElements()))
                 .body(result.getContent());
@@ -74,46 +75,48 @@ public class AssignmentController {
 
     @Operation(summary = "ДЗ по id")
     @GetMapping("/{id}")
-    public AssignmentResponse getById(@PathVariable Long id) {
-        return assignmentService.getById(id);
+    public ResponseEntity<AssignmentResponse> getAssignment(@PathVariable Long id) {
+        return ResponseEntity.ok(assignmentService.getAssignment(id));
     }
 
     @Operation(summary = "Создать ДЗ (учитель должен вести этот предмет в этом классе)")
     @PostMapping
-    public ResponseEntity<AssignmentResponse> create(@Valid @RequestBody AssignmentCreateRequest request) {
-        AssignmentResponse created = assignmentService.create(request);
-        return ResponseEntity.created(Locations.of(created.id())).body(created);
+    public ResponseEntity<AssignmentResponse> createAssignment(@Valid @RequestBody AssignmentCreateRequest request) {
+        AssignmentResponse created = assignmentService.createAssignment(request);
+        return ResponseEntity.created(Locations.buildFor(created.id())).body(created);
     }
 
     @Operation(summary = "Изменить ДЗ")
     @PutMapping("/{id}")
-    public AssignmentResponse update(@PathVariable Long id, @Valid @RequestBody AssignmentUpdateRequest request) {
-        return assignmentService.update(id, request);
+    public ResponseEntity<AssignmentResponse> updateAssignment(@PathVariable Long id,
+                                                               @Valid @RequestBody AssignmentUpdateRequest request) {
+        return ResponseEntity.ok(assignmentService.updateAssignment(id, request));
     }
 
     @Operation(summary = "Удалить ДЗ (вместе с решениями)")
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        assignmentService.delete(id);
+    public ResponseEntity<Void> deleteAssignment(@PathVariable Long id) {
+        assignmentService.deleteAssignment(id);
         return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "Отправить решение ДЗ")
     @PostMapping("/{id}/submissions")
-    public ResponseEntity<SubmissionResponse> submit(@PathVariable Long id,
-                                                     @Valid @RequestBody SubmissionCreateRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(assignmentService.submit(id, request));
+    public ResponseEntity<SubmissionResponse> submitSolution(@PathVariable Long id,
+                                                             @Valid @RequestBody SubmissionCreateRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(assignmentService.submitSolution(id, request));
     }
 
     @Operation(summary = "Решения по ДЗ (One-to-Many assignments -> submissions)")
     @GetMapping("/{id}/submissions")
-    public List<SubmissionResponse> submissions(@PathVariable Long id) {
-        return assignmentService.getSubmissions(id);
+    public ResponseEntity<List<SubmissionResponse>> listSubmissions(@PathVariable Long id) {
+        return ResponseEntity.ok(assignmentService.listSubmissions(id));
     }
 
     @Operation(summary = "Выставить оценку и уведомить ученика и родителей (одна транзакция)")
     @PostMapping("/{id}/grade")
-    public GradeResponse grade(@PathVariable Long id, @Valid @RequestBody GradeRequest request) {
-        return gradeService.grade(id, request);
+    public ResponseEntity<GradeResponse> gradeSubmission(@PathVariable Long id,
+                                                         @Valid @RequestBody GradeRequest request) {
+        return ResponseEntity.ok(gradeService.gradeSubmission(id, request));
     }
 }

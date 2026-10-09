@@ -35,7 +35,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 public abstract class AbstractIntegrationTest {
 
-    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
+    /**
+     * Версия базы зафиксирована точным тегом: тесты должны идти на той же версии PostgreSQL,
+     * что указана в docker-compose.yml, а не на "последней подходящей".
+     */
+    static final String POSTGRES_IMAGE = "postgres:16.4-alpine";
+
+    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>(POSTGRES_IMAGE);
 
     static {
         POSTGRES.start();
@@ -96,7 +102,6 @@ public abstract class AbstractIntegrationTest {
         String username = unique("u");
         return createdId(postJson("/api/users", map(
                 "username", username,
-                "password", "secret123",
                 "fullName", "Test " + username,
                 "email", username + "@test.local",
                 "phone", "+79990000000",

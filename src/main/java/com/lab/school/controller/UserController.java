@@ -8,6 +8,7 @@ import com.lab.school.dto.user.UserUpdateRequest;
 import com.lab.school.entity.enums.UserRole;
 import com.lab.school.service.GradeService;
 import com.lab.school.service.UserService;
+import com.lab.school.utils.Locations;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -27,14 +28,14 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-import static com.lab.school.dto.common.PaginationConstants.DEFAULT_PAGE;
-import static com.lab.school.dto.common.PaginationConstants.DEFAULT_PAGE_SIZE;
-import static com.lab.school.dto.common.PaginationConstants.MAX_PAGE_SIZE;
+import static com.lab.school.utils.PaginationConstants.DEFAULT_PAGE;
+import static com.lab.school.utils.PaginationConstants.DEFAULT_PAGE_SIZE;
+import static com.lab.school.utils.PaginationConstants.MAX_PAGE_SIZE;
 
 @Tag(name = "Users", description = "Пользователи и их роли")
 @RestController
-@RequestMapping("/api/users")
 @RequiredArgsConstructor
+@RequestMapping("/api/users")
 public class UserController {
 
     private final UserService userService;
@@ -42,53 +43,54 @@ public class UserController {
 
     @Operation(summary = "Список пользователей (постранично, не более 50)")
     @GetMapping
-    public List<UserResponse> findAll(
+    public ResponseEntity<List<UserResponse>> listUsers(
             @RequestParam(defaultValue = DEFAULT_PAGE) @Min(0) int page,
             @RequestParam(defaultValue = DEFAULT_PAGE_SIZE) @Min(1) @Max(MAX_PAGE_SIZE) int size) {
-        return userService.findAll(page, size).getContent();
+        return ResponseEntity.ok(userService.listUsers(page, size).getContent());
     }
 
     @Operation(summary = "Пользователь по id")
     @GetMapping("/{id}")
-    public UserResponse getById(@PathVariable Long id) {
-        return userService.getById(id);
+    public ResponseEntity<UserResponse> getUser(@PathVariable Long id) {
+        return ResponseEntity.ok(userService.getUser(id));
     }
 
-    @Operation(summary = "Создать пользователя (пароль сохраняется в виде BCrypt-хеша)")
+    @Operation(summary = "Создать пользователя")
     @PostMapping
-    public ResponseEntity<UserResponse> create(@Valid @RequestBody UserCreateRequest request) {
-        UserResponse created = userService.create(request);
-        return ResponseEntity.created(Locations.of(created.id())).body(created);
+    public ResponseEntity<UserResponse> createUser(@Valid @RequestBody UserCreateRequest request) {
+        UserResponse created = userService.createUser(request);
+        return ResponseEntity.created(Locations.buildFor(created.id())).body(created);
     }
 
     @Operation(summary = "Обновить ФИО, email и телефон")
     @PutMapping("/{id}")
-    public UserResponse update(@PathVariable Long id, @Valid @RequestBody UserUpdateRequest request) {
-        return userService.update(id, request);
+    public ResponseEntity<UserResponse> updateUser(@PathVariable Long id,
+                                                   @Valid @RequestBody UserUpdateRequest request) {
+        return ResponseEntity.ok(userService.updateUser(id, request));
     }
 
     @Operation(summary = "Удалить пользователя")
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        userService.delete(id);
+    public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
+        userService.deleteUser(id);
         return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "Добавить пользователю роль (M:N users <-> roles)")
     @PostMapping("/{id}/roles")
-    public UserResponse addRole(@PathVariable Long id, @Valid @RequestBody RoleRequest request) {
-        return userService.addRole(id, request.role());
+    public ResponseEntity<UserResponse> addRole(@PathVariable Long id, @Valid @RequestBody RoleRequest request) {
+        return ResponseEntity.ok(userService.addRole(id, request.role()));
     }
 
     @Operation(summary = "Снять с пользователя дополнительную роль")
     @DeleteMapping("/{id}/roles/{role}")
-    public UserResponse removeRole(@PathVariable Long id, @PathVariable UserRole role) {
-        return userService.removeRole(id, role);
+    public ResponseEntity<UserResponse> removeRole(@PathVariable Long id, @PathVariable UserRole role) {
+        return ResponseEntity.ok(userService.removeRole(id, role));
     }
 
     @Operation(summary = "Оценки пользователя: ученик — свои, родитель — детей, учитель — по своим заданиям")
     @GetMapping("/{id}/grades")
-    public List<GradeEntryResponse> grades(@PathVariable Long id) {
-        return gradeService.getGradesForUser(id);
+    public ResponseEntity<List<GradeEntryResponse>> listGradesOfUser(@PathVariable Long id) {
+        return ResponseEntity.ok(gradeService.listGradesOfUser(id));
     }
 }

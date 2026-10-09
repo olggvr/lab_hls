@@ -7,7 +7,6 @@ import com.lab.school.dto.message.MessageResponse;
 import com.lab.school.entity.Message;
 import com.lab.school.entity.Parent;
 import com.lab.school.entity.ParentStudent;
-import com.lab.school.entity.SchoolClass;
 import com.lab.school.entity.Student;
 import com.lab.school.entity.User;
 import com.lab.school.entity.enums.ParentRelation;
@@ -16,9 +15,6 @@ import com.lab.school.exception.BusinessException;
 import com.lab.school.mapper.MessageMapper;
 import com.lab.school.repository.MessageRecipientRepository;
 import com.lab.school.repository.MessageRepository;
-import com.lab.school.repository.ParentStudentRepository;
-import com.lab.school.repository.StudentRepository;
-import com.lab.school.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,23 +37,25 @@ class MessageServiceTest {
 
     @Mock
     private MessageRepository messageRepository;
+
     @Mock
     private MessageRecipientRepository recipientRepository;
+
     @Mock
-    private UserRepository userRepository;
+    private UserService userService;
+
     @Mock
-    private StudentRepository studentRepository;
+    private StudentService studentService;
+
     @Mock
-    private ParentStudentRepository parentStudentRepository;
-    @Mock
-    private EntityFinder finder;
+    private ParentStudentService parentStudentService;
 
     private MessageService messageService;
 
     @BeforeEach
     void setUp() {
-        messageService = new MessageService(messageRepository, recipientRepository, userRepository,
-                studentRepository, parentStudentRepository, Mappers.getMapper(MessageMapper.class), finder);
+        messageService = new MessageService(messageRepository, recipientRepository, userService,
+                studentService, parentStudentService, Mappers.getMapper(MessageMapper.class));
     }
 
     @Test
@@ -69,15 +67,14 @@ class MessageServiceTest {
         sharedParent.setId(30L);
         sharedParent.setUser(user(31L, UserRole.PARENT));
 
-        when(finder.user(1L)).thenReturn(teacher);
-        when(finder.schoolClass(5L)).thenReturn(new SchoolClass());
-        when(studentRepository.findBySchoolClassId(5L)).thenReturn(List.of(s1, s2));
-        when(parentStudentRepository.findByStudentIdIn(anyCollection())).thenReturn(List.of(
+        when(userService.requireUser(1L)).thenReturn(teacher);
+        when(studentService.collectStudentsOfClass(5L)).thenReturn(List.of(s1, s2));
+        when(parentStudentService.collectLinksOfStudents(anyCollection())).thenReturn(List.of(
                 new ParentStudent(sharedParent, s1, ParentRelation.MOTHER),
                 new ParentStudent(sharedParent, s2, ParentRelation.MOTHER)));
         when(messageRepository.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        MessageResponse response = messageService.broadcast(new BroadcastRequest(
+        MessageResponse response = messageService.broadcastMessage(new BroadcastRequest(
                 1L, BroadcastScope.CLASS, 5L, null, BroadcastAudience.ALL, "Собрание", "Текст"));
 
         assertThat(response.recipientsCount()).isEqualTo(3);
@@ -86,9 +83,9 @@ class MessageServiceTest {
 
     @Test
     void broadcast_fromStudent_isRejected() {
-        when(finder.user(2L)).thenReturn(user(2L, UserRole.STUDENT));
+        when(userService.requireUser(2L)).thenReturn(user(2L, UserRole.STUDENT));
 
-        assertThatThrownBy(() -> messageService.broadcast(new BroadcastRequest(
+        assertThatThrownBy(() -> messageService.broadcastMessage(new BroadcastRequest(
                 2L, BroadcastScope.SCHOOL, null, null, BroadcastAudience.ALL, "s", "b")))
                 .isInstanceOf(BusinessException.class);
         verify(messageRepository, never()).save(any());
@@ -96,11 +93,21 @@ class MessageServiceTest {
 
     @Test
     void broadcast_withoutRecipients_isRejected() {
-        when(finder.user(1L)).thenReturn(user(1L, UserRole.SUPERVISOR));
-        when(studentRepository.findBySchoolClass_Year(3)).thenReturn(List.of());
+        when(userService.requireUser(1L)).thenReturn(user(1L, UserRole.SUPERVISOR));
+        when(studentService.collectStudentsOfParallel(3)).thenReturn(List.of());
 
-        assertThatThrownBy(() -> messageService.broadcast(new BroadcastRequest(
+        assertThatThrownBy(() -> messageService.broadcastMessage(new BroadcastRequest(
                 1L, BroadcastScope.PARALLEL, null, 3, BroadcastAudience.STUDENTS, "s", "b")))
+                .isInstanceOf(BusinessException.class);
+        verify(messageRepository, never()).save(any());
+    }
+
+    @Test
+    void broadcastToClass_withoutClassId_isRejected() {
+        when(userService.requireUser(1L)).thenReturn(user(1L, UserRole.TEACHER));
+
+        assertThatThrownBy(() -> messageService.broadcastMessage(new BroadcastRequest(
+                1L, BroadcastScope.CLASS, null, null, BroadcastAudience.ALL, "s", "b")))
                 .isInstanceOf(BusinessException.class);
         verify(messageRepository, never()).save(any());
     }

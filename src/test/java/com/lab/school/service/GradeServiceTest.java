@@ -4,7 +4,6 @@ import com.lab.school.dto.assignment.GradeRequest;
 import com.lab.school.dto.assignment.GradeResponse;
 import com.lab.school.entity.Assignment;
 import com.lab.school.entity.Message;
-import com.lab.school.entity.MessageRecipient;
 import com.lab.school.entity.Parent;
 import com.lab.school.entity.ParentStudent;
 import com.lab.school.entity.Student;
@@ -16,14 +15,9 @@ import com.lab.school.entity.enums.MessageType;
 import com.lab.school.entity.enums.ParentRelation;
 import com.lab.school.entity.enums.SubmissionStatus;
 import com.lab.school.entity.enums.UserRole;
+import com.lab.school.exception.BusinessException;
 import com.lab.school.exception.NotFoundException;
 import com.lab.school.mapper.AssignmentMapper;
-import com.lab.school.repository.MessageRepository;
-import com.lab.school.repository.ParentRepository;
-import com.lab.school.repository.ParentStudentRepository;
-import com.lab.school.repository.StudentRepository;
-import com.lab.school.repository.SubmissionRepository;
-import com.lab.school.repository.TeacherRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,45 +26,52 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class GradeServiceTest {
 
     @Mock
-    private SubmissionRepository submissionRepository;
+    private AssignmentService assignmentService;
+
     @Mock
-    private ParentStudentRepository parentStudentRepository;
+    private StudentService studentService;
+
     @Mock
-    private MessageRepository messageRepository;
+    private ParentService parentService;
+
     @Mock
-    private StudentRepository studentRepository;
+    private ParentStudentService parentStudentService;
+
     @Mock
-    private ParentRepository parentRepository;
+    private TeacherService teacherService;
+
     @Mock
-    private TeacherRepository teacherRepository;
+    private MessageService messageService;
+
     @Mock
-    private EntityFinder finder;
+    private UserService userService;
 
     private GradeService gradeService;
 
     @BeforeEach
     void setUp() {
-        gradeService = new GradeService(submissionRepository, parentStudentRepository, messageRepository,
-                studentRepository, parentRepository, teacherRepository,
-                Mappers.getMapper(AssignmentMapper.class), finder);
+        gradeService = new GradeService(assignmentService, studentService, parentService, parentStudentService,
+                teacherService, messageService, userService, Mappers.getMapper(AssignmentMapper.class));
     }
 
     @Test
-    void grade_updatesSubmission_andNotifiesStudentAndParentsInOneMessage() {
+    void gradeSubmission_updatesSubmission_andNotifiesStudentAndParentsInOneMessage() {
         Assignment assignment = assignment();
         Student student = student(10L, user(100L, "Ученик", UserRole.STUDENT));
         Submission submission = new Submission();
@@ -80,14 +81,16 @@ class GradeServiceTest {
         submission.setContentUrl("https://files/x.pdf");
         submission.setStatus(SubmissionStatus.SUBMITTED);
 
-        when(finder.assignment(1L)).thenReturn(assignment);
-        when(submissionRepository.findByAssignmentIdAndStudentId(1L, 10L)).thenReturn(Optional.of(submission));
-        when(parentStudentRepository.findByStudentId(10L)).thenReturn(List.of(
+        when(assignmentService.requireAssignment(1L)).thenReturn(assignment);
+        when(assignmentService.requireSubmission(1L, 10L)).thenReturn(submission);
+        when(parentStudentService.collectLinksOfStudent(10L)).thenReturn(List.of(
                 link(parent(user(201L, "Мама", UserRole.PARENT)), student, ParentRelation.MOTHER),
                 link(parent(user(202L, "Папа", UserRole.PARENT)), student, ParentRelation.FATHER)));
-        when(messageRepository.save(any(Message.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(messageService.notifyAboutGrade(any(User.class), anyString(), anyString(), anyCollection()))
+                .thenAnswer(invocation -> buildNotification(invocation.getArgument(0), invocation.getArgument(1),
+                        invocation.getArgument(2), invocation.getArgument(3)));
 
-        GradeResponse response = gradeService.grade(1L, new GradeRequest(10L, 4));
+        GradeResponse response = gradeService.gradeSubmission(1L, new GradeRequest(10L, 4));
 
         assertThat(submission.getGrade()).isEqualTo(4);
         assertThat(submission.getStatus()).isEqualTo(SubmissionStatus.GRADED);
@@ -95,25 +98,40 @@ class GradeServiceTest {
         assertThat(response.notifiedRecipients()).isEqualTo(3);
         assertThat(response.submission().grade()).isEqualTo(4);
 
-        ArgumentCaptor<Message> captor = ArgumentCaptor.forClass(Message.class);
-        verify(messageRepository).save(captor.capture());
-        Message message = captor.getValue();
-        assertThat(message.getType()).isEqualTo(MessageType.GRADE_NOTIFICATION);
-        assertThat(message.getSender().getId()).isEqualTo(50L);
-        assertThat(message.getRecipients())
-                .extracting(MessageRecipient::getUser)
+        ArgumentCaptor<User> senderCaptor = ArgumentCaptor.forClass(User.class);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Collection<User>> recipientsCaptor = ArgumentCaptor.forClass(Collection.class);
+        verify(messageService).notifyAboutGrade(senderCaptor.capture(), anyString(), anyString(),
+                recipientsCaptor.capture());
+        assertThat(senderCaptor.getValue().getId()).isEqualTo(50L);
+        assertThat(recipientsCaptor.getValue())
                 .extracting(User::getId)
                 .containsExactly(100L, 201L, 202L);
     }
 
     @Test
-    void grade_withoutSubmission_throwsNotFound_andSendsNothing() {
-        when(finder.assignment(1L)).thenReturn(assignment());
-        when(submissionRepository.findByAssignmentIdAndStudentId(1L, 10L)).thenReturn(Optional.empty());
+    void gradeSubmission_withoutSubmission_throwsNotFound_andSendsNothing() {
+        when(assignmentService.requireAssignment(1L)).thenReturn(assignment());
+        when(assignmentService.requireSubmission(1L, 10L))
+                .thenThrow(new NotFoundException("Решение ученика id=10 по заданию id=1 не найдено"));
 
-        assertThatThrownBy(() -> gradeService.grade(1L, new GradeRequest(10L, 5)))
+        assertThatThrownBy(() -> gradeService.gradeSubmission(1L, new GradeRequest(10L, 5)))
                 .isInstanceOf(NotFoundException.class);
-        verify(messageRepository, never()).save(any());
+        verifyNoInteractions(messageService);
+    }
+
+    @Test
+    void listGradesOfUser_forSupervisor_isRejected() {
+        when(userService.requireUser(1L)).thenReturn(user(1L, "Админ", UserRole.SUPERVISOR));
+
+        assertThatThrownBy(() -> gradeService.listGradesOfUser(1L))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    private static Message buildNotification(User sender, String subject, String body, Collection<User> recipients) {
+        Message message = new Message(sender, subject, body, MessageType.GRADE_NOTIFICATION);
+        recipients.forEach(message::addRecipient);
+        return message;
     }
 
     private static Assignment assignment() {

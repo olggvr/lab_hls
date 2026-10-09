@@ -6,7 +6,6 @@ import com.lab.school.dto.assignment.AssignmentUpdateRequest;
 import com.lab.school.dto.assignment.SubmissionCreateRequest;
 import com.lab.school.dto.assignment.SubmissionResponse;
 import com.lab.school.dto.common.CursorPage;
-import com.lab.school.dto.common.PaginationConstants;
 import com.lab.school.entity.Assignment;
 import com.lab.school.entity.SchoolClass;
 import com.lab.school.entity.Student;
@@ -16,10 +15,11 @@ import com.lab.school.entity.Teacher;
 import com.lab.school.entity.enums.SubmissionStatus;
 import com.lab.school.exception.BusinessException;
 import com.lab.school.exception.ConflictException;
+import com.lab.school.exception.NotFoundException;
 import com.lab.school.mapper.AssignmentMapper;
 import com.lab.school.repository.AssignmentRepository;
 import com.lab.school.repository.SubmissionRepository;
-import com.lab.school.repository.TeacherClassSubjectRepository;
+import com.lab.school.utils.PageRequests;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -28,28 +28,34 @@ import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Модуль домашних заданий. Единственный владелец assignments и submissions.
+ * Учителя, классы, предметы и учеников берёт у соответствующих сервисов.
+ */
 @Service
-@Transactional(readOnly = true)
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class AssignmentService {
 
     private final AssignmentRepository assignmentRepository;
     private final SubmissionRepository submissionRepository;
-    private final TeacherClassSubjectRepository workloadRepository;
+    private final TeacherService teacherService;
+    private final SchoolClassService schoolClassService;
+    private final SubjectService subjectService;
+    private final StudentService studentService;
     private final AssignmentMapper assignmentMapper;
-    private final EntityFinder finder;
 
     /**
      * Infinite scroll: keyset-пагинация по id (от новых к старым), без подсчёта общего количества.
      *
      * @param cursor id последнего полученного задания; null — первая порция
      */
-    public CursorPage<AssignmentResponse> scroll(Long cursor, int size) {
-        int safeSize = Math.max(1, Math.min(size, PaginationConstants.MAX_PAGE_SIZE));
-        Pageable pageable = PageRequest.of(0, safeSize);
+    public CursorPage<AssignmentResponse> scrollAssignments(Long cursor, int size) {
+        Pageable pageable = PageRequest.of(0, PageRequests.normalizeSize(size));
         Slice<Assignment> slice = cursor == null
                 ? assignmentRepository.findAllByOrderByIdDesc(pageable)
                 : assignmentRepository.findByIdLessThanOrderByIdDesc(cursor, pageable);
@@ -63,22 +69,22 @@ public class AssignmentService {
     /**
      * Классическая пагинация (общее количество отдаётся контроллером в заголовке X-Total-Count).
      */
-    public Page<AssignmentResponse> findPage(int page, int size) {
-        return assignmentRepository.findAll(PageRequests.byId(page, size)).map(assignmentMapper::toResponse);
+    public Page<AssignmentResponse> listAssignmentsPage(int page, int size) {
+        return assignmentRepository.findAll(PageRequests.buildSortedById(page, size))
+                .map(assignmentMapper::toResponse);
     }
 
-    public AssignmentResponse getById(Long id) {
-        return assignmentMapper.toResponse(finder.assignment(id));
+    public AssignmentResponse getAssignment(Long id) {
+        return assignmentMapper.toResponse(requireAssignment(id));
     }
 
     @Transactional
-    public AssignmentResponse create(AssignmentCreateRequest request) {
-        Teacher teacher = finder.teacher(request.teacherId());
-        SchoolClass schoolClass = finder.schoolClass(request.classId());
-        Subject subject = finder.subject(request.subjectId());
+    public AssignmentResponse createAssignment(AssignmentCreateRequest request) {
+        Teacher teacher = teacherService.requireTeacher(request.teacherId());
+        SchoolClass schoolClass = schoolClassService.requireSchoolClass(request.classId());
+        Subject subject = subjectService.requireSubject(request.subjectId());
         // Учитель может задавать ДЗ только по своим предметам в своих классах
-        if (!workloadRepository.existsByTeacherIdAndSchoolClassIdAndSubjectId(
-                teacher.getId(), schoolClass.getId(), subject.getId())) {
+        if (!teacherService.existsWorkload(teacher.getId(), schoolClass.getId(), subject.getId())) {
             throw new BusinessException("Учитель id=" + teacher.getId() + " не ведёт предмет '"
                     + subject.getName() + "' в классе " + schoolClass.getName());
         }
@@ -93,8 +99,8 @@ public class AssignmentService {
     }
 
     @Transactional
-    public AssignmentResponse update(Long id, AssignmentUpdateRequest request) {
-        Assignment assignment = finder.assignment(id);
+    public AssignmentResponse updateAssignment(Long id, AssignmentUpdateRequest request) {
+        Assignment assignment = requireAssignment(id);
         assignment.setTitle(request.title());
         assignment.setDescription(request.description());
         assignment.setDueDate(request.dueDate());
@@ -102,15 +108,15 @@ public class AssignmentService {
     }
 
     @Transactional
-    public void delete(Long id) {
-        assignmentRepository.delete(finder.assignment(id));
+    public void deleteAssignment(Long id) {
+        assignmentRepository.delete(requireAssignment(id));
         assignmentRepository.flush();
     }
 
     @Transactional
-    public SubmissionResponse submit(Long assignmentId, SubmissionCreateRequest request) {
-        Assignment assignment = finder.assignment(assignmentId);
-        Student student = finder.student(request.studentId());
+    public SubmissionResponse submitSolution(Long assignmentId, SubmissionCreateRequest request) {
+        Assignment assignment = requireAssignment(assignmentId);
+        Student student = studentService.requireStudent(request.studentId());
         if (!Objects.equals(student.getSchoolClass().getId(), assignment.getSchoolClass().getId())) {
             throw new BusinessException("Ученик id=" + student.getId() + " не учится в классе "
                     + assignment.getSchoolClass().getName());
@@ -126,10 +132,35 @@ public class AssignmentService {
         return assignmentMapper.toSubmissionResponse(submissionRepository.save(submission));
     }
 
-    public List<SubmissionResponse> getSubmissions(Long assignmentId) {
-        finder.assignment(assignmentId);
+    public List<SubmissionResponse> listSubmissions(Long assignmentId) {
+        requireAssignment(assignmentId);
         return submissionRepository.findByAssignmentIdOrderByIdAsc(assignmentId).stream()
                 .map(assignmentMapper::toSubmissionResponse)
                 .toList();
+    }
+
+    /**
+     * Точка входа для других модулей: вернуть задание или 404.
+     */
+    public Assignment requireAssignment(Long id) {
+        return assignmentRepository.findById(id).orElseThrow(() -> new NotFoundException("Домашнее задание", id));
+    }
+
+    /**
+     * Решение конкретного ученика по заданию — нужно модулю оценок.
+     */
+    public Submission requireSubmission(Long assignmentId, Long studentId) {
+        return submissionRepository.findByAssignmentIdAndStudentId(assignmentId, studentId)
+                .orElseThrow(() -> new NotFoundException("Решение ученика id=" + studentId
+                        + " по заданию id=" + assignmentId + " не найдено"));
+    }
+
+    public List<Submission> collectGradedByStudents(Collection<Long> studentIds) {
+        return submissionRepository.findByStudentIdInAndStatusOrderByGradedAtDesc(studentIds, SubmissionStatus.GRADED);
+    }
+
+    public List<Submission> collectGradedByTeacher(Long teacherId) {
+        return submissionRepository.findByAssignment_Teacher_IdAndStatusOrderByGradedAtDesc(
+                teacherId, SubmissionStatus.GRADED);
     }
 }

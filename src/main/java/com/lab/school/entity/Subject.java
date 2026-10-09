@@ -14,16 +14,15 @@ import lombok.Setter;
 @Entity
 @Table(name = "subjects")
 @Getter
+@Setter
 public class Subject {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Setter
     private Long id;
 
     @NotBlank
     @Size(max = 100)
     @Column(name = "name", nullable = false, unique = true, length = 100)
-    @Setter
     private String name;
 }

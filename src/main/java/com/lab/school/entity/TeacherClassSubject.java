@@ -16,7 +16,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * Many-to-Many с дополнительным полем: teachers <-> classes (+ subject, academic_year).
+ * Many-to-Many с дополнительным полем: teachers &lt;-&gt; classes (+ subject, academic_year).
  */
 @Entity
 @Table(name = "teacher_class_subject")

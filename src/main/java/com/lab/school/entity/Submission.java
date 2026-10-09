@@ -76,5 +76,4 @@ public class Submission {
             status = SubmissionStatus.SUBMITTED;
         }
     }
-
 }

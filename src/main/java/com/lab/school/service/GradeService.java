@@ -9,37 +9,33 @@ import com.lab.school.entity.ParentStudent;
 import com.lab.school.entity.Student;
 import com.lab.school.entity.Submission;
 import com.lab.school.entity.User;
-import com.lab.school.entity.enums.MessageType;
 import com.lab.school.entity.enums.SubmissionStatus;
 import com.lab.school.exception.BusinessException;
-import com.lab.school.exception.NotFoundException;
 import com.lab.school.mapper.AssignmentMapper;
-import com.lab.school.repository.MessageRepository;
-import com.lab.school.repository.ParentRepository;
-import com.lab.school.repository.ParentStudentRepository;
-import com.lab.school.repository.StudentRepository;
-import com.lab.school.repository.SubmissionRepository;
-import com.lab.school.repository.TeacherRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Модуль оценок. Своих таблиц не имеет: работает через модули заданий, людей и сообщений.
+ */
 @Service
-@Transactional(readOnly = true)
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class GradeService {
 
-    private final SubmissionRepository submissionRepository;
-    private final ParentStudentRepository parentStudentRepository;
-    private final MessageRepository messageRepository;
-    private final StudentRepository studentRepository;
-    private final ParentRepository parentRepository;
-    private final TeacherRepository teacherRepository;
+    private final AssignmentService assignmentService;
+    private final StudentService studentService;
+    private final ParentService parentService;
+    private final ParentStudentService parentStudentService;
+    private final TeacherService teacherService;
+    private final MessageService messageService;
+    private final UserService userService;
     private final AssignmentMapper assignmentMapper;
-    private final EntityFinder finder;
 
     /**
      * ТРАНЗАКЦИЯ №1: выставление оценки + уведомление ученика и его родителей.
@@ -49,29 +45,27 @@ public class GradeService {
      * получит уведомление без оценки, а оценка не появится "молча" без уведомления.
      */
     @Transactional
-    public GradeResponse grade(Long assignmentId, GradeRequest request) {
-        Assignment assignment = finder.assignment(assignmentId);
-        Submission submission = submissionRepository.findByAssignmentIdAndStudentId(assignmentId, request.studentId())
-                .orElseThrow(() -> new NotFoundException("Решение ученика id=" + request.studentId()
-                        + " по заданию id=" + assignmentId + " не найдено"));
+    public GradeResponse gradeSubmission(Long assignmentId, GradeRequest request) {
+        Assignment assignment = assignmentService.requireAssignment(assignmentId);
+        Submission submission = assignmentService.requireSubmission(assignmentId, request.studentId());
 
         submission.setGrade(request.grade());
         submission.setStatus(SubmissionStatus.GRADED);
         submission.setGradedAt(LocalDateTime.now());
 
         Student student = submission.getStudent();
-        User teacherUser = assignment.getTeacher().getUser();
-        Message notification = new Message(
-                teacherUser,
+        List<User> recipients = new ArrayList<>();
+        recipients.add(student.getUser());
+        for (ParentStudent link : parentStudentService.collectLinksOfStudent(student.getId())) {
+            recipients.add(link.getParent().getUser());
+        }
+
+        Message notification = messageService.notifyAboutGrade(
+                assignment.getTeacher().getUser(),
                 "Новая оценка: " + assignment.getSubject().getName(),
                 "Ученик " + student.getUser().getFullName() + " получил оценку " + request.grade()
                         + " за задание «" + assignment.getTitle() + "».",
-                MessageType.GRADE_NOTIFICATION);
-        notification.addRecipient(student.getUser());
-        for (ParentStudent link : parentStudentRepository.findByStudentId(student.getId())) {
-            notification.addRecipient(link.getParent().getUser());
-        }
-        messageRepository.save(notification);
+                recipients);
 
         return new GradeResponse(
                 assignmentMapper.toSubmissionResponse(submission),
@@ -83,25 +77,20 @@ public class GradeService {
      * Оценки пользователя. Логика зависит от роли пользователя:
      * ученик — свои оценки, родитель — оценки детей, учитель — оценки по его заданиям.
      */
-    public List<GradeEntryResponse> getGradesForUser(Long userId) {
-        User user = finder.user(userId);
+    public List<GradeEntryResponse> listGradesOfUser(Long userId) {
+        User user = userService.requireUser(userId);
         List<Submission> submissions = switch (user.getRole()) {
-            case STUDENT -> studentRepository.findByUserId(userId)
-                    .map(s -> submissionRepository.findByStudentIdInAndStatusOrderByGradedAtDesc(
-                            List.of(s.getId()), SubmissionStatus.GRADED))
-                    .orElse(List.of());
-            case PARENT -> parentRepository.findByUserId(userId)
-                    .map(p -> parentStudentRepository.findByParentId(p.getId()).stream()
-                            .map(link -> link.getStudent().getId())
-                            .toList())
-                    .filter(ids -> !ids.isEmpty())
-                    .map(ids -> submissionRepository.findByStudentIdInAndStatusOrderByGradedAtDesc(
-                            ids, SubmissionStatus.GRADED))
-                    .orElse(List.of());
-            case TEACHER -> teacherRepository.findByUserId(userId)
-                    .map(t -> submissionRepository.findByAssignment_Teacher_IdAndStatusOrderByGradedAtDesc(
-                            t.getId(), SubmissionStatus.GRADED))
-                    .orElse(List.of());
+            case STUDENT -> studentService.findStudentByUserId(userId)
+                    .map(student -> assignmentService.collectGradedByStudents(List.of(student.getId())))
+                    .orElseGet(List::of);
+            case PARENT -> parentService.findParentByUserId(userId)
+                    .map(parent -> parentStudentService.collectChildIdsOfParent(parent.getId()))
+                    .filter(childIds -> !childIds.isEmpty())
+                    .map(assignmentService::collectGradedByStudents)
+                    .orElseGet(List::of);
+            case TEACHER -> teacherService.findTeacherByUserId(userId)
+                    .map(teacher -> assignmentService.collectGradedByTeacher(teacher.getId()))
+                    .orElseGet(List::of);
             case SUPERVISOR -> throw new BusinessException("У администратора нет оценок");
         };
         return submissions.stream().map(assignmentMapper::toGradeEntry).toList();

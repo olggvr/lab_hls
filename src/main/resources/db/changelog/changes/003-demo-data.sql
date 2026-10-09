@@ -1,7 +1,7 @@
 --liquibase formatted sql
 
 -- Демо-данные. Применяются только с контекстом "demo" (LIQUIBASE_CONTEXTS=demo).
--- Пароль у всех демо-пользователей: password
+-- Аутентификации в ЛР1 нет, поэтому паролей у пользователей тоже нет.
 
 --changeset school:003-demo-data context:demo
 INSERT INTO subjects (name)
@@ -14,15 +14,15 @@ VALUES ('7А', 7),
        ('7Б', 7),
        ('8А', 8);
 
-INSERT INTO users (username, password_hash, full_name, email, phone, role)
-VALUES ('admin', '$2a$10$A2wcoAHtI/scHiw22IWpoe9oe8e/gNgM8URRlz9wigHDkGPtIofym', 'Администратор Школы', 'admin@school.local', '+70000000000', 'SUPERVISOR'),
-       ('ivanova', '$2a$10$A2wcoAHtI/scHiw22IWpoe9oe8e/gNgM8URRlz9wigHDkGPtIofym', 'Иванова Мария Петровна', 'ivanova@school.local', '+70000000001', 'TEACHER'),
-       ('petrov', '$2a$10$A2wcoAHtI/scHiw22IWpoe9oe8e/gNgM8URRlz9wigHDkGPtIofym', 'Петров Сергей Иванович', 'petrov@school.local', '+70000000002', 'TEACHER'),
-       ('smirnov.a', '$2a$10$A2wcoAHtI/scHiw22IWpoe9oe8e/gNgM8URRlz9wigHDkGPtIofym', 'Смирнов Алексей', 'smirnov.a@school.local', NULL, 'STUDENT'),
-       ('kuznetsova.o', '$2a$10$A2wcoAHtI/scHiw22IWpoe9oe8e/gNgM8URRlz9wigHDkGPtIofym', 'Кузнецова Ольга', 'kuznetsova.o@school.local', NULL, 'STUDENT'),
-       ('volkov.d', '$2a$10$A2wcoAHtI/scHiw22IWpoe9oe8e/gNgM8URRlz9wigHDkGPtIofym', 'Волков Дмитрий', 'volkov.d@school.local', NULL, 'STUDENT'),
-       ('smirnova.e', '$2a$10$A2wcoAHtI/scHiw22IWpoe9oe8e/gNgM8URRlz9wigHDkGPtIofym', 'Смирнова Елена', 'smirnova.e@mail.local', '+70000000010', 'PARENT'),
-       ('kuznetsov.p', '$2a$10$A2wcoAHtI/scHiw22IWpoe9oe8e/gNgM8URRlz9wigHDkGPtIofym', 'Кузнецов Павел', 'kuznetsov.p@mail.local', '+70000000011', 'PARENT');
+INSERT INTO users (username, full_name, email, phone, role)
+VALUES ('admin', 'Администратор Школы', 'admin@school.local', '+70000000000', 'SUPERVISOR'),
+       ('ivanova', 'Иванова Мария Петровна', 'ivanova@school.local', '+70000000001', 'TEACHER'),
+       ('petrov', 'Петров Сергей Иванович', 'petrov@school.local', '+70000000002', 'TEACHER'),
+       ('smirnov.a', 'Смирнов Алексей', 'smirnov.a@school.local', NULL, 'STUDENT'),
+       ('kuznetsova.o', 'Кузнецова Ольга', 'kuznetsova.o@school.local', NULL, 'STUDENT'),
+       ('volkov.d', 'Волков Дмитрий', 'volkov.d@school.local', NULL, 'STUDENT'),
+       ('smirnova.e', 'Смирнова Елена', 'smirnova.e@mail.local', '+70000000010', 'PARENT'),
+       ('kuznetsov.p', 'Кузнецов Павел', 'kuznetsov.p@mail.local', '+70000000011', 'PARENT');
 
 INSERT INTO user_roles (user_id, role_id)
 SELECT u.id, r.id

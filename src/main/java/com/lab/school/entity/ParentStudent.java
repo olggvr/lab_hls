@@ -19,7 +19,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * Many-to-Many с дополнительным полем: parents <-> students (+ relation).
+ * Many-to-Many с дополнительным полем: parents &lt;-&gt; students (+ relation).
  */
 @Entity
 @Table(name = "parent_student")
@@ -42,9 +42,9 @@ public class ParentStudent {
     private Student student;
 
     @NotNull
+    @Setter
     @Enumerated(EnumType.STRING)
     @Column(name = "relation", nullable = false, length = 20)
-    @Setter
     private ParentRelation relation;
 
     public ParentStudent(Parent parent, Student student, ParentRelation relation) {

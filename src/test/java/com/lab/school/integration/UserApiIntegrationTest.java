@@ -17,11 +17,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class UserApiIntegrationTest extends AbstractIntegrationTest {
 
     @Test
-    void createUser_returns201_locationAndNoPassword() throws Exception {
+    void createUser_returns201_withLocationHeader() throws Exception {
         String username = unique("user");
         postJson("/api/users", map(
                 "username", username,
-                "password", "secret123",
                 "fullName", "Иван Иванов",
                 "email", username + "@test.local",
                 "role", "TEACHER"))
@@ -29,18 +28,16 @@ class UserApiIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(header().string("Location", containsString("/api/users/")))
                 .andExpect(jsonPath("$.username").value(username))
                 .andExpect(jsonPath("$.role").value("TEACHER"))
-                .andExpect(jsonPath("$.roles[0]").value("TEACHER"))
-                .andExpect(jsonPath("$.password").doesNotExist())
-                .andExpect(jsonPath("$.passwordHash").doesNotExist());
+                .andExpect(jsonPath("$.roles[0]").value("TEACHER"));
     }
 
     @Test
     void createUser_duplicateUsername_returns409() throws Exception {
         String username = unique("dup");
-        Object body = map("username", username, "password", "secret123", "fullName", "A",
+        Object body = map("username", username, "fullName", "A",
                 "email", username + "@test.local", "role", "STUDENT");
         postJson("/api/users", body).andExpect(status().isCreated());
-        postJson("/api/users", map("username", username, "password", "secret123", "fullName", "A",
+        postJson("/api/users", map("username", username, "fullName", "A",
                 "email", unique("other") + "@test.local", "role", "STUDENT"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409));
@@ -49,9 +46,9 @@ class UserApiIntegrationTest extends AbstractIntegrationTest {
     @Test
     void createUser_duplicateEmail_returns409() throws Exception {
         String email = unique("mail") + "@test.local";
-        postJson("/api/users", map("username", unique("a"), "password", "secret123", "fullName", "A",
+        postJson("/api/users", map("username", unique("a"), "fullName", "A",
                 "email", email, "role", "STUDENT")).andExpect(status().isCreated());
-        postJson("/api/users", map("username", unique("b"), "password", "secret123", "fullName", "B",
+        postJson("/api/users", map("username", unique("b"), "fullName", "B",
                 "email", email, "role", "STUDENT")).andExpect(status().isConflict());
     }
 
@@ -59,21 +56,20 @@ class UserApiIntegrationTest extends AbstractIntegrationTest {
     void createUser_invalidBody_returns400WithFieldErrors() throws Exception {
         postJson("/api/users", map(
                 "username", "x",
-                "password", "1",
                 "fullName", "",
                 "email", "not-an-email",
                 "phone", "abc",
                 "role", "TEACHER"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.fieldErrors.username").exists())
-                .andExpect(jsonPath("$.fieldErrors.password").exists())
+                .andExpect(jsonPath("$.fieldErrors.fullName").exists())
                 .andExpect(jsonPath("$.fieldErrors.email").exists())
                 .andExpect(jsonPath("$.fieldErrors.phone").exists());
     }
 
     @Test
     void createUser_unknownRole_returns400() throws Exception {
-        postJson("/api/users", map("username", unique("r"), "password", "secret123", "fullName", "A",
+        postJson("/api/users", map("username", unique("r"), "fullName", "A",
                 "email", unique("r") + "@test.local", "role", "DIRECTOR"))
                 .andExpect(status().isBadRequest());
     }
@@ -108,13 +104,13 @@ class UserApiIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void findAll_pageSizeOver50_returns400() throws Exception {
+    void listUsers_pageSizeOver50_returns400() throws Exception {
         mvc.perform(get("/api/users").param("size", "51")).andExpect(status().isBadRequest());
         mvc.perform(get("/api/users").param("page", "-1")).andExpect(status().isBadRequest());
     }
 
     @Test
-    void findAll_returnsAtMostRequestedSize() throws Exception {
+    void listUsers_returnsAtMostRequestedSize() throws Exception {
         createUser("STUDENT");
         createUser("STUDENT");
         mvc.perform(get("/api/users").param("size", "1"))

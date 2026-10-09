@@ -6,6 +6,7 @@ import com.lab.school.entity.Role;
 import com.lab.school.entity.User;
 import com.lab.school.entity.enums.UserRole;
 import com.lab.school.exception.ConflictException;
+import com.lab.school.exception.NotFoundException;
 import com.lab.school.mapper.UserMapper;
 import com.lab.school.repository.RoleRepository;
 import com.lab.school.repository.UserRepository;
@@ -16,8 +17,6 @@ import org.mapstruct.factory.Mappers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Optional;
 
@@ -33,47 +32,52 @@ class UserServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
     @Mock
     private RoleRepository roleRepository;
-    @Mock
-    private EntityFinder finder;
 
-    private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private UserService userService;
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(userRepository, roleRepository, passwordEncoder,
-                Mappers.getMapper(UserMapper.class), finder);
+        userService = new UserService(userRepository, roleRepository, Mappers.getMapper(UserMapper.class));
     }
 
     @Test
-    void create_storesOnlyBcryptHash_andAssignsRole() {
+    void createUser_assignsMainRole_andNeverExposesCredentials() {
         UserCreateRequest request = new UserCreateRequest(
-                "teacher1", "secret123", "Учитель", "t@school.local", null, UserRole.TEACHER);
+                "teacher1", "Учитель", "t@school.local", null, UserRole.TEACHER);
         when(userRepository.existsByUsername("teacher1")).thenReturn(false);
         when(userRepository.existsByEmail("t@school.local")).thenReturn(false);
         when(roleRepository.findByName(UserRole.TEACHER)).thenReturn(Optional.of(new Role(UserRole.TEACHER)));
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        UserResponse response = userService.create(request);
+        UserResponse response = userService.createUser(request);
 
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(captor.capture());
         User saved = captor.getValue();
-        assertThat(saved.getPasswordHash()).isNotEqualTo("secret123").startsWith("$2");
-        assertThat(passwordEncoder.matches("secret123", saved.getPasswordHash())).isTrue();
+        assertThat(saved.getUsername()).isEqualTo("teacher1");
+        assertThat(saved.getRole()).isEqualTo(UserRole.TEACHER);
         assertThat(response.roles()).containsExactly(UserRole.TEACHER);
         assertThat(response.username()).isEqualTo("teacher1");
     }
 
     @Test
-    void create_withTakenUsername_throwsConflict() {
+    void createUser_withTakenUsername_throwsConflict() {
         when(userRepository.existsByUsername("dup")).thenReturn(true);
 
-        assertThatThrownBy(() -> userService.create(new UserCreateRequest(
-                "dup", "secret123", "X", "x@school.local", null, UserRole.STUDENT)))
+        assertThatThrownBy(() -> userService.createUser(new UserCreateRequest(
+                "dup", "X", "x@school.local", null, UserRole.STUDENT)))
                 .isInstanceOf(ConflictException.class);
         verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void requireUser_withUnknownId_throwsNotFound() {
+        when(userRepository.findById(777L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.requireUser(777L))
+                .isInstanceOf(NotFoundException.class);
     }
 }

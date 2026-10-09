@@ -18,6 +18,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -25,58 +26,52 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * Пользователь системы. Аутентификации в ЛР1 нет, пароли не хранятся.
+ */
 @Entity
 @Table(name = "users")
 @Getter
+@Setter
 public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Setter
     private Long id;
 
     @NotBlank
     @Size(min = 3, max = 50)
     @Column(name = "username", nullable = false, unique = true, length = 50)
-    @Setter
     private String username;
-
-    @NotBlank
-    @Size(max = 100)
-    @Column(name = "password_hash", nullable = false, length = 100)
-    @Setter
-    private String passwordHash;
 
     @NotBlank
     @Size(max = 150)
     @Column(name = "full_name", nullable = false, length = 150)
-    @Setter
     private String fullName;
 
     @NotBlank
     @Email
     @Size(max = 150)
     @Column(name = "email", nullable = false, unique = true, length = 150)
-    @Setter
     private String email;
 
     @Size(max = 20)
     @Column(name = "phone", length = 20)
-    @Setter
     private String phone;
 
     @NotNull
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false, length = 32)
-    @Setter
     private UserRole role;
 
+    @Setter(AccessLevel.NONE)
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     /**
-     * Many-to-Many: users <-> roles (таблица user_roles).
+     * Many-to-Many: users &lt;-&gt; roles (таблица user_roles).
      */
+    @Setter(AccessLevel.NONE)
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
             name = "user_roles",

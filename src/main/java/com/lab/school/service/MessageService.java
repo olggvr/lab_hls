@@ -17,51 +17,44 @@ import com.lab.school.exception.NotFoundException;
 import com.lab.school.mapper.MessageMapper;
 import com.lab.school.repository.MessageRecipientRepository;
 import com.lab.school.repository.MessageRepository;
-import com.lab.school.repository.ParentStudentRepository;
-import com.lab.school.repository.StudentRepository;
-import com.lab.school.repository.UserRepository;
+import com.lab.school.utils.PageRequests;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
+/**
+ * Модуль сообщений. Единственный владелец messages и message_recipients.
+ * Пользователей, учеников и связи с родителями берёт у соответствующих сервисов.
+ */
 @Service
-@Transactional(readOnly = true)
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class MessageService {
 
     private final MessageRepository messageRepository;
     private final MessageRecipientRepository recipientRepository;
-    private final UserRepository userRepository;
-    private final StudentRepository studentRepository;
-    private final ParentStudentRepository parentStudentRepository;
+    private final UserService userService;
+    private final StudentService studentService;
+    private final ParentStudentService parentStudentService;
     private final MessageMapper messageMapper;
-    private final EntityFinder finder;
 
-    public MessageResponse getById(Long id) {
-        Message message = messageRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Сообщение", id));
-        return messageMapper.toResponse(message);
+    public MessageResponse getMessage(Long id) {
+        return messageMapper.toResponse(requireMessage(id));
     }
 
     /**
      * Личное сообщение одному или нескольким пользователям (сообщение + получатели — одной транзакцией).
      */
     @Transactional
-    public MessageResponse sendDirect(DirectMessageRequest request) {
-        User sender = finder.user(request.senderId());
-        List<User> recipients = userRepository.findAllById(request.recipientIds());
-        if (recipients.size() != request.recipientIds().size()) {
-            Set<Long> found = recipients.stream().map(User::getId).collect(Collectors.toSet());
-            Long missing = request.recipientIds().stream().filter(id -> !found.contains(id)).findFirst().orElse(null);
-            throw new NotFoundException("Пользователь", missing);
-        }
+    public MessageResponse sendDirectMessage(DirectMessageRequest request) {
+        User sender = userService.requireUser(request.senderId());
+        List<User> recipients = userService.requireUsers(request.recipientIds());
         Message message = new Message(sender, request.subject(), request.body(), MessageType.DIRECT);
         recipients.forEach(message::addRecipient);
         return messageMapper.toResponse(messageRepository.save(message));
@@ -75,8 +68,8 @@ public class MessageService {
      * когда сообщение получила только часть адресатов.
      */
     @Transactional
-    public MessageResponse broadcast(BroadcastRequest request) {
-        User sender = finder.user(request.senderId());
+    public MessageResponse broadcastMessage(BroadcastRequest request) {
+        User sender = userService.requireUser(request.senderId());
         if (sender.getRole() != UserRole.TEACHER && sender.getRole() != UserRole.SUPERVISOR) {
             throw new BusinessException("Массовую рассылку может делать только учитель или администратор");
         }
@@ -86,16 +79,15 @@ public class MessageService {
                 if (request.classId() == null) {
                     throw new BusinessException("Для рассылки по классу нужно указать classId");
                 }
-                finder.schoolClass(request.classId());
-                yield studentRepository.findBySchoolClassId(request.classId());
+                yield studentService.collectStudentsOfClass(request.classId());
             }
             case PARALLEL -> {
                 if (request.year() == null) {
                     throw new BusinessException("Для рассылки по параллели нужно указать year");
                 }
-                yield studentRepository.findBySchoolClass_Year(request.year());
+                yield studentService.collectStudentsOfParallel(request.year());
             }
-            case SCHOOL -> studentRepository.findAllBy();
+            case SCHOOL -> studentService.collectAllStudents();
         };
 
         Map<Long, User> recipients = collectRecipients(students, request.audience());
@@ -109,14 +101,14 @@ public class MessageService {
         return messageMapper.toResponse(messageRepository.save(message));
     }
 
-    public Page<InboxItemResponse> inbox(Long userId, int page, int size) {
-        finder.user(userId);
-        return recipientRepository.findByUserIdOrderByIdDesc(userId, PageRequests.unsorted(page, size))
+    public Page<InboxItemResponse> listInbox(Long userId, int page, int size) {
+        userService.requireUser(userId);
+        return recipientRepository.findByUserIdOrderByIdDesc(userId, PageRequests.buildUnsorted(page, size))
                 .map(messageMapper::toInboxItem);
     }
 
     @Transactional
-    public InboxItemResponse markRead(Long messageId, Long userId) {
+    public InboxItemResponse markMessageRead(Long messageId, Long userId) {
         MessageRecipient recipient = recipientRepository.findByMessageIdAndUserId(messageId, userId)
                 .orElseThrow(() -> new NotFoundException(
                         "Сообщение id=" + messageId + " для пользователя id=" + userId + " не найдено"));
@@ -125,10 +117,24 @@ public class MessageService {
     }
 
     @Transactional
-    public void delete(Long id) {
-        Message message = messageRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Сообщение", id));
-        messageRepository.delete(message);
+    public void deleteMessage(Long id) {
+        messageRepository.delete(requireMessage(id));
+    }
+
+    /**
+     * Уведомление об оценке. Вызывается модулем оценок внутри его транзакции
+     * (REQUIRED присоединяется к уже открытой), поэтому оценка и уведомление
+     * сохраняются атомарно.
+     */
+    @Transactional
+    public Message notifyAboutGrade(User sender, String subject, String body, Collection<User> recipients) {
+        Message message = new Message(sender, subject, body, MessageType.GRADE_NOTIFICATION);
+        recipients.forEach(message::addRecipient);
+        return messageRepository.save(message);
+    }
+
+    private Message requireMessage(Long id) {
+        return messageRepository.findById(id).orElseThrow(() -> new NotFoundException("Сообщение", id));
     }
 
     private Map<Long, User> collectRecipients(List<Student> students, BroadcastAudience audience) {
@@ -138,7 +144,7 @@ public class MessageService {
         }
         if ((audience == BroadcastAudience.PARENTS || audience == BroadcastAudience.ALL) && !students.isEmpty()) {
             List<Long> studentIds = students.stream().map(Student::getId).toList();
-            for (ParentStudent link : parentStudentRepository.findByStudentIdIn(studentIds)) {
+            for (ParentStudent link : parentStudentService.collectLinksOfStudents(studentIds)) {
                 User parentUser = link.getParent().getUser();
                 recipients.putIfAbsent(parentUser.getId(), parentUser);
             }

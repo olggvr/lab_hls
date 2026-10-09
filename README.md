@@ -9,12 +9,16 @@ Backend информационной системы образовательно
 |---|---|
 | Язык / сборка | Java 21, Maven |
 | Фреймворк | Spring Boot 3.5 (Web, Data JPA, Validation, Actuator) |
-| БД | PostgreSQL 16 (Docker) |
+| БД | PostgreSQL 16.4 (Docker; та же версия в Testcontainers) |
 | Миграции | Liquibase (`src/main/resources/db/changelog`) |
 | Маппинг Entity ↔ DTO | MapStruct |
+| Boilerplate | Lombok (+ `lombok-mapstruct-binding`) |
 | Документация API | springdoc-openapi (OpenAPI 3 + Swagger UI) |
-| Пароли | BCrypt (`spring-security-crypto`) |
 | Тесты | JUnit 5, Mockito, Testcontainers, JaCoCo (порог покрытия 70%) |
+
+Аутентификации и авторизации в ЛР1 нет: пароли не хранятся и не запрашиваются, эндпоинты открыты.
+Модель ролей (`users.role`, `users ↔ roles`) заложена в схему как данные — она понадобится,
+когда авторизацию будут добавлять в следующих работах.
 
 ## Быстрый старт
 
@@ -49,8 +53,6 @@ cp .env.example .env
 Остановить и удалить данные: `docker compose down -v`.
 
 ### Демо-данные (`LIQUIBASE_CONTEXTS=demo`)
-
-Пароль у всех демо-пользователей — `password` (в БД хранится только BCrypt-хеш).
 
 | id пользователя | логин | роль | профиль |
 |---|---|---|---|
@@ -103,6 +105,8 @@ mvn verify
 
 - Нужен запущенный Docker: интеграционные тесты поднимают PostgreSQL через Testcontainers и прогоняют
   на нём реальные миграции Liquibase.
+- Версия базы зафиксирована точным тегом `postgres:16.4-alpine` (`AbstractIntegrationTest.POSTGRES_IMAGE`)
+  и совпадает с версией в `docker-compose.yml` — тесты идут на той же СУБД, что и приложение.
 - `mvn verify` падает, если покрытие строк ниже 70% (`jacoco:check`).
 - HTML-отчёт о покрытии: `target/site/jacoco/index.html`.
 
@@ -114,6 +118,7 @@ mvn verify
 | `PeopleIntegrationTest` | учителя и их нагрузка, ученики, `X-Total-Count`, связи родитель–ученик |
 | `AssignmentFlowIntegrationTest` | ДЗ → решение → оценка + уведомление, infinite scroll, оценки по ролям |
 | `MessagingIntegrationTest` | личные сообщения, входящие, прочтение, рассылки по классу/параллели/школе |
+| `SchemaSyncIntegrationTest` | синхронизация сущностей и схемы после миграций |
 
 ## Архитектура
 
@@ -125,8 +130,26 @@ entity      → JPA-сущности (+ Bean Validation на уровне Entity
 dto         → запросы/ответы (Java records), Entity наружу не отдаются
 mapper      → MapStruct: Entity → DTO
 exception   → свои исключения + глобальный @RestControllerAdvice
-config      → BCrypt, OpenAPI
+utils       → общие вспомогательные и конфигурационные классы
+              (PaginationConstants, PageRequests, ProfileGuard, Locations, OpenApiConfig)
 ```
+
+Правила, которые соблюдаются по всему коду:
+
+- **Каждый сервис владеет только своими репозиториями.** Данные чужого модуля берутся вызовом его
+  сервиса (`userService.requireUser(id)`, `subjectService.requireSubject(id)` и т.д.), а не напрямую
+  через чужой репозиторий. Связь «родитель — ученик» вынесена в отдельный `ParentStudentService`.
+  Граф зависимостей сервисов ацикличен: `UserService`, `SubjectService` и `SchoolClassService` —
+  листья, `GradeService` — верхний уровень.
+- **Все методы контроллеров и сервисов названы глаголами** (`listStudents`, `getAssignment`,
+  `createUser`, `assignWorkload`, `gradeSubmission`, `broadcastMessage`).
+- **Все методы контроллеров возвращают `ResponseEntity`** — статус и заголовки задаются явно.
+- **Lombok** закрывает геттеры/сеттеры в сущностях (`@Getter`/`@Setter`, коллекции без сеттеров),
+  конструкторы внедрения в сервисах и контроллерах (`@RequiredArgsConstructor`) и логгер
+  в обработчике ошибок (`@Slf4j`). В `annotationProcessorPaths` Lombok идёт перед
+  `mapstruct-processor`, между ними — `lombok-mapstruct-binding`, иначе MapStruct не увидит
+  сгенерированные геттеры. `lombok.config` помечает сгенерированный код `@lombok.Generated`,
+  поэтому JaCoCo не считает его в покрытии.
 
 ### Модель данных
 
@@ -147,6 +170,23 @@ config      → BCrypt, OpenAPI
 - `001-init-schema.sql` — таблицы, внешние ключи, индексы, ограничения;
 - `002-reference-data.sql` — справочник ролей (применяется всегда);
 - `003-demo-data.sql` — демо-данные (только с контекстом `demo`).
+
+### Валидация синхронизации модели и схемы
+
+Схемой владеет Liquibase, но код и миграции не должны расходиться. Это проверяется на двух уровнях:
+
+1. `spring.jpa.hibernate.ddl-auto=validate` — сразу после миграций Hibernate сверяет все сущности
+   со схемой. Если в Entity появилось поле, которого нет в миграции (или наоборот таблица/колонка
+   исчезла), приложение **не стартует**, а в тестах не поднимается контекст.
+2. `SchemaSyncIntegrationTest` — явно обходит метамодель JPA, собирает все пары «таблица.колонка»
+   (включая join-таблицы M:N) и сверяет их с `information_schema`, показывая в случае расхождения,
+   какой именно колонки не хватает. Там же проверяется, что Liquibase применил changelog'и.
+
+Проверить применённые миграции руками:
+
+```bash
+docker exec -it school-postgres psql -U school -d school -c 'select id, filename from databasechangelog;'
+```
 
 ## API
 
@@ -188,12 +228,14 @@ config      → BCrypt, OpenAPI
 
 ### Транзакции
 
-1. **Выставление оценки + уведомление** (`GradeService.grade`, `POST /api/assignments/{id}/grade`).
+1. **Выставление оценки + уведомление** (`GradeService.gradeSubmission`, `POST /api/assignments/{id}/grade`).
    В одной транзакции: `UPDATE submissions` (оценка, статус `GRADED`, время) + `INSERT INTO messages` +
    `INSERT INTO message_recipients` для ученика и всех его родителей.
    *Обоснование:* оценка и уведомление должны сохраниться атомарно. Иначе возможны рассинхроны:
    родитель получил уведомление об оценке, которой в журнале нет, или оценка появилась «молча».
-2. **Массовая рассылка** (`MessageService.broadcast`, `POST /api/messages/broadcast`).
+   Сообщение создаёт `MessageService.notifyAboutGrade`: вызов идёт с `Propagation.REQUIRED`
+   и присоединяется к уже открытой транзакции `GradeService`, то есть транзакция остаётся одна.
+2. **Массовая рассылка** (`MessageService.broadcastMessage`, `POST /api/messages/broadcast`).
    Одна запись в `messages` + N записей в `message_recipients` (ученики и/или родители класса, параллели
    или всей школы, без дублей).
    *Обоснование:* при ошибке на середине вставки нельзя оставить частично разосланное сообщение —
@@ -215,7 +257,7 @@ config      → BCrypt, OpenAPI
 | 422 Unprocessable Entity | нарушение бизнес-правила (учитель не ведёт предмет в классе, ученик из другого класса, рассылка от ученика и т.п.) |
 | 500 Internal Server Error | непредвиденная ошибка |
 
-Пароль и его хеш никогда не попадают в ответы: наружу отдаются только DTO.
+Наружу отдаются только DTO: сущности в ответы не попадают.
 
 ## Git
 
@@ -236,7 +278,7 @@ config      → BCrypt, OpenAPI
 | `findAll` не более 50 записей | `PaginationConstants.MAX_PAGE_SIZE`, `@Max(50)` на `size` |
 | Infinite scroll без total | `GET /api/assignments?cursor=` |
 | Пагинация с `X-Total-Count` | `GET /api/students/page`, `GET /api/assignments/page` |
-| 2+ транзакционных запроса с обоснованием | `GradeService.grade`, `MessageService.broadcast` (см. «Транзакции») |
+| 2+ транзакционных запроса с обоснованием | `GradeService.gradeSubmission`, `MessageService.broadcastMessage` (см. «Транзакции») |
 | One-to-Many | `classes → students`, `teachers → assignments`, `assignments → submissions` |
 | Many-to-Many | `users ↔ roles` |
 | Many-to-Many с доп. полем | `parent_student.relation`, `teacher_class_subject.academic_year`, `message_recipients.is_read/read_at` |
@@ -244,3 +286,6 @@ config      → BCrypt, OpenAPI
 | OpenAPI 3 + Swagger UI | springdoc, `/swagger-ui` |
 | JUnit 5 + Testcontainers, покрытие ≥ 70% | `src/test`, `jacoco-maven-plugin` (`check` на фазе `verify`) |
 | Запуск через `docker compose up` | `Dockerfile`, `docker-compose.yml` |
+| Модель в коде синхронна схеме в БД | `ddl-auto: validate` + `SchemaSyncIntegrationTest` |
+| Общение модулей только через сервисы | `requireX`-методы сервисов, у каждого модуля свои репозитории |
+| Утилитные и конфиг-классы в отдельном пакете | `com.lab.school.utils` |

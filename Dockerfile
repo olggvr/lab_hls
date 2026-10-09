@@ -6,6 +6,7 @@ WORKDIR /build
 COPY pom.xml .
 RUN mvn -B -q dependency:go-offline
 
+COPY lombok.config .
 COPY src ./src
 # Тесты требуют Docker (Testcontainers), поэтому внутри образа их не запускаем —
 # они гоняются локально командой `mvn verify`

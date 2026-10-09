@@ -10,6 +10,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotNull;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -19,22 +20,22 @@ import java.util.List;
 @Entity
 @Table(name = "parents")
 @Getter
+@Setter
 public class Parent {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Setter
     private Long id;
 
     @NotNull
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false, unique = true)
-    @Setter
     private User user;
 
     /**
      * Дети родителя (M:N с доп. полем relation).
      */
+    @Setter(AccessLevel.NONE)
     @OneToMany(mappedBy = "parent")
     private List<ParentStudent> children = new ArrayList<>();
 }

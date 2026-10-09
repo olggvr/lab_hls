@@ -4,6 +4,8 @@ import com.lab.school.dto.parent.ChildResponse;
 import com.lab.school.dto.parent.ParentCreateRequest;
 import com.lab.school.dto.parent.ParentResponse;
 import com.lab.school.service.ParentService;
+import com.lab.school.service.ParentStudentService;
+import com.lab.school.utils.Locations;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -22,49 +24,50 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-import static com.lab.school.dto.common.PaginationConstants.DEFAULT_PAGE;
-import static com.lab.school.dto.common.PaginationConstants.DEFAULT_PAGE_SIZE;
-import static com.lab.school.dto.common.PaginationConstants.MAX_PAGE_SIZE;
+import static com.lab.school.utils.PaginationConstants.DEFAULT_PAGE;
+import static com.lab.school.utils.PaginationConstants.DEFAULT_PAGE_SIZE;
+import static com.lab.school.utils.PaginationConstants.MAX_PAGE_SIZE;
 
 @Tag(name = "Parents", description = "Родители")
 @RestController
-@RequestMapping("/api/parents")
 @RequiredArgsConstructor
+@RequestMapping("/api/parents")
 public class ParentController {
 
     private final ParentService parentService;
+    private final ParentStudentService parentStudentService;
 
     @Operation(summary = "Список родителей (постранично, не более 50)")
     @GetMapping
-    public List<ParentResponse> findAll(
+    public ResponseEntity<List<ParentResponse>> listParents(
             @RequestParam(defaultValue = DEFAULT_PAGE) @Min(0) int page,
             @RequestParam(defaultValue = DEFAULT_PAGE_SIZE) @Min(1) @Max(MAX_PAGE_SIZE) int size) {
-        return parentService.findAll(page, size).getContent();
+        return ResponseEntity.ok(parentService.listParents(page, size).getContent());
     }
 
     @Operation(summary = "Родитель по id")
     @GetMapping("/{id}")
-    public ParentResponse getById(@PathVariable Long id) {
-        return parentService.getById(id);
+    public ResponseEntity<ParentResponse> getParent(@PathVariable Long id) {
+        return ResponseEntity.ok(parentService.getParent(id));
     }
 
     @Operation(summary = "Создать профиль родителя для пользователя с ролью PARENT")
     @PostMapping
-    public ResponseEntity<ParentResponse> create(@Valid @RequestBody ParentCreateRequest request) {
-        ParentResponse created = parentService.create(request);
-        return ResponseEntity.created(Locations.of(created.id())).body(created);
+    public ResponseEntity<ParentResponse> createParent(@Valid @RequestBody ParentCreateRequest request) {
+        ParentResponse created = parentService.createParent(request);
+        return ResponseEntity.created(Locations.buildFor(created.id())).body(created);
     }
 
     @Operation(summary = "Удалить профиль родителя")
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        parentService.delete(id);
+    public ResponseEntity<Void> deleteParent(@PathVariable Long id) {
+        parentService.deleteParent(id);
         return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "Дети родителя")
     @GetMapping("/{id}/children")
-    public List<ChildResponse> children(@PathVariable Long id) {
-        return parentService.getChildren(id);
+    public ResponseEntity<List<ChildResponse>> listChildrenOfParent(@PathVariable Long id) {
+        return ResponseEntity.ok(parentStudentService.listChildrenOfParent(id));
     }
 }

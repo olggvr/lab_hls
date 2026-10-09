@@ -1,57 +1,57 @@
 package com.lab.school.service;
 
-import com.lab.school.dto.parent.ParentContactResponse;
-import com.lab.school.dto.parent.ParentLinkRequest;
 import com.lab.school.dto.student.StudentCreateRequest;
 import com.lab.school.dto.student.StudentResponse;
 import com.lab.school.dto.student.StudentUpdateRequest;
-import com.lab.school.entity.Parent;
-import com.lab.school.entity.ParentStudent;
 import com.lab.school.entity.Student;
 import com.lab.school.entity.User;
 import com.lab.school.entity.enums.UserRole;
 import com.lab.school.exception.ConflictException;
 import com.lab.school.exception.NotFoundException;
-import com.lab.school.mapper.ParentMapper;
 import com.lab.school.mapper.StudentMapper;
-import com.lab.school.repository.ParentStudentRepository;
 import com.lab.school.repository.StudentRepository;
+import com.lab.school.utils.PageRequests;
+import com.lab.school.utils.ProfileGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
+/**
+ * Модуль учеников. Единственный владелец students.
+ * Пользователя берёт у {@link UserService}, класс — у {@link SchoolClassService}.
+ */
 @Service
-@Transactional(readOnly = true)
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class StudentService {
 
     private final StudentRepository studentRepository;
-    private final ParentStudentRepository parentStudentRepository;
+    private final UserService userService;
+    private final SchoolClassService schoolClassService;
     private final StudentMapper studentMapper;
-    private final ParentMapper parentMapper;
-    private final EntityFinder finder;
 
-    public Page<StudentResponse> findAll(int page, int size) {
-        return studentRepository.findAll(PageRequests.byId(page, size)).map(studentMapper::toResponse);
+    public Page<StudentResponse> listStudents(int page, int size) {
+        return studentRepository.findAll(PageRequests.buildSortedById(page, size)).map(studentMapper::toResponse);
     }
 
-    public StudentResponse getById(Long id) {
-        return studentMapper.toResponse(finder.student(id));
+    public StudentResponse getStudent(Long id) {
+        return studentMapper.toResponse(requireStudent(id));
     }
 
     @Transactional
-    public StudentResponse create(StudentCreateRequest request) {
-        User user = finder.user(request.userId());
+    public StudentResponse createStudent(StudentCreateRequest request) {
+        User user = userService.requireUser(request.userId());
         ProfileGuard.requireRole(user, UserRole.STUDENT);
         if (studentRepository.existsByUserId(user.getId())) {
             throw new ConflictException("Профиль ученика для пользователя id=" + user.getId() + " уже существует");
         }
         Student student = new Student();
         student.setUser(user);
-        student.setSchoolClass(finder.schoolClass(request.classId()));
+        student.setSchoolClass(schoolClassService.requireSchoolClass(request.classId()));
         return studentMapper.toResponse(studentRepository.save(student));
     }
 
@@ -59,44 +59,48 @@ public class StudentService {
      * Перевод ученика в другой класс.
      */
     @Transactional
-    public StudentResponse update(Long id, StudentUpdateRequest request) {
-        Student student = finder.student(id);
-        student.setSchoolClass(finder.schoolClass(request.classId()));
+    public StudentResponse updateStudent(Long id, StudentUpdateRequest request) {
+        Student student = requireStudent(id);
+        student.setSchoolClass(schoolClassService.requireSchoolClass(request.classId()));
         return studentMapper.toResponse(student);
     }
 
     @Transactional
-    public void delete(Long id) {
-        studentRepository.delete(finder.student(id));
+    public void deleteStudent(Long id) {
+        studentRepository.delete(requireStudent(id));
         studentRepository.flush();
     }
 
     /**
-     * Контакты родителей ученика.
+     * Ученики класса (One-to-Many classes -&gt; students).
      */
-    public List<ParentContactResponse> getParents(Long studentId) {
-        finder.student(studentId);
-        return parentStudentRepository.findByStudentId(studentId).stream()
-                .map(parentMapper::toContact)
+    public List<StudentResponse> listStudentsOfClass(Long classId) {
+        return collectStudentsOfClass(classId).stream()
+                .map(studentMapper::toResponse)
                 .toList();
     }
 
-    @Transactional
-    public ParentContactResponse linkParent(Long studentId, ParentLinkRequest request) {
-        Student student = finder.student(studentId);
-        Parent parent = finder.parent(request.parentId());
-        if (parentStudentRepository.existsByParentIdAndStudentId(parent.getId(), studentId)) {
-            throw new ConflictException("Родитель id=" + parent.getId() + " уже привязан к ученику id=" + studentId);
-        }
-        ParentStudent link = parentStudentRepository.save(new ParentStudent(parent, student, request.relation()));
-        return parentMapper.toContact(link);
+    /**
+     * Точка входа для других модулей: вернуть ученика или 404.
+     */
+    public Student requireStudent(Long id) {
+        return studentRepository.findById(id).orElseThrow(() -> new NotFoundException("Ученик", id));
     }
 
-    @Transactional
-    public void unlinkParent(Long studentId, Long parentId) {
-        ParentStudent link = parentStudentRepository.findByParentIdAndStudentId(parentId, studentId)
-                .orElseThrow(() -> new NotFoundException(
-                        "Связь ученика id=" + studentId + " с родителем id=" + parentId + " не найдена"));
-        parentStudentRepository.delete(link);
+    public Optional<Student> findStudentByUserId(Long userId) {
+        return studentRepository.findByUserId(userId);
+    }
+
+    public List<Student> collectStudentsOfClass(Long classId) {
+        schoolClassService.requireSchoolClass(classId);
+        return studentRepository.findBySchoolClassId(classId);
+    }
+
+    public List<Student> collectStudentsOfParallel(Integer year) {
+        return studentRepository.findBySchoolClass_Year(year);
+    }
+
+    public List<Student> collectAllStudents() {
+        return studentRepository.findAllBy();
     }
 }

@@ -11,6 +11,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotNull;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -20,17 +21,16 @@ import java.util.List;
 @Entity
 @Table(name = "teachers")
 @Getter
+@Setter
 public class Teacher {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Setter
     private Long id;
 
     @NotNull
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false, unique = true)
-    @Setter
     private User user;
 
     /**
@@ -38,18 +38,19 @@ public class Teacher {
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "subject_id")
-    @Setter
     private Subject subject;
 
     /**
-     * One-to-Many: teachers -> assignments.
+     * One-to-Many: teachers -&gt; assignments.
      */
+    @Setter(AccessLevel.NONE)
     @OneToMany(mappedBy = "teacher")
     private List<Assignment> assignments = new ArrayList<>();
 
     /**
      * Нагрузка учителя: классы и предметы по учебным годам (M:N с доп. полем).
      */
+    @Setter(AccessLevel.NONE)
     @OneToMany(mappedBy = "teacher")
     private List<TeacherClassSubject> workload = new ArrayList<>();
 }

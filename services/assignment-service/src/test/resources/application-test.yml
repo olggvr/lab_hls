@@ -1,0 +1,14 @@
+spring:
+  cloud:
+    config:
+      enabled: false
+  sql:
+    init:
+      mode: always
+  r2dbc:
+    username: test
+    password: test
+
+eureka:
+  client:
+    enabled: false

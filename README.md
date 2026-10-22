@@ -1,67 +1,74 @@
 # School Platform — лабораторная работа №2
 
-Микросервисная версия системы управления школой из ЛР1. Внешние REST-контракты
-сохранены за API Gateway, а модуль сообщений выделен в отдельный реактивный сервис со своей БД.
+Микросервисная версия School Management System из ЛР1. Каждый бизнес-сервис владеет
+своей PostgreSQL БД, регистрируется в Eureka, получает конфигурацию из Config Server и
+доступен клиенту через API Gateway.
 
 ## Архитектура
 
 ```text
-                         +------------------+
-client :8080 ----------> |   API Gateway    |
-                         +--------+---------+
-                                  | lb:// via Eureka
-                       +----------+----------+
-                       |                     |
-              +--------v---------+  +--------v---------+
-              | academic-service |  | message-service  |
-              | Reactor + JPA     |  | WebFlux + R2DBC  |
-              | :8081             |  | :8082            |
-              +--------+---------+  +--------+---------+
-                       |  OpenFeign + Circuit Breaker  |
-                       +<----------------------------->+
-                       |                     |
-              +--------v---------+  +--------v---------+
-              | academic-db      |  | message-db       |
-              | PostgreSQL :5432 |  | PostgreSQL :5433 |
-              +------------------+  +------------------+
+                                  +----------------+
+client :8080 -------------------> |  API Gateway   |
+                                  +-------+--------+
+                                          | lb://, Eureka
+                  +-----------------------+-----------------------+
+                  |                       |                       |
+          +-------v------+       +--------v-------+       +-------v-------+
+          | User Service | <---- | Assignment     | <---- | Grades        |
+          | JPA          | Feign | Service        | Feign | Service       |
+          | :8081        |       | Reactor/R2DBC  |       | Reactor/JPA   |
+          +-------+------+       | :8083          |       | :8084         |
+                  ^              +--------+-------+       +-------+-------+
+                  | Feign                 |                       |
+          +-------+---------+             |                       | Feign
+          | Message Service | <-----------+-----------------------+
+          | Reactor/R2DBC   |
+          | :8082           |
+          +-----------------+
 
-       Config Server :8888 <--- config-repo/*.yml
-       Eureka Server :8761 <--- registration/discovery
+Config Server :8888 <--- Git backend: config-repo/*.yml
+Eureka Server :8761 <--- registration and discovery
+PostgreSQL: user-db, assignment-db, grades-db, message-db
 ```
 
-| Модуль | Ответственность | Данные |
+| Модуль | Ответственность | Стек данных |
 |---|---|---|
-| `academic-service` | пользователи, роли, классы, люди, предметы, ДЗ, решения, оценки; реактивный internal directory | Spring Data JPA, Liquibase, `academic-db` |
-| `message-service` | личные сообщения, рассылки, inbox, уведомления об оценках | Reactor/WebFlux, Spring Data R2DBC, `message-db` |
-| `api-gateway` | единая точка входа, load-balanced routes | Spring Cloud Gateway |
-| `config-server` | внешняя конфигурация сервисов | native repository `config-repo/` |
+| `user-service` | пользователи, ученики, учителя, родители, классы, предметы и workload | Spring Data JPA + Liquibase |
+| `assignment-service` | CRUD домашних заданий, cursor/page pagination, сдача решений | Reactor/WebFlux + Spring Data R2DBC |
+| `grades-service` | выставление и просмотр оценок, запуск уведомления | Reactor/WebFlux + Spring Data JPA + Liquibase |
+| `message-service` | личные сообщения, рассылки, inbox, уведомления об оценках | Reactor/WebFlux + Spring Data R2DBC |
+| `api-gateway` | единая точка входа и единый Swagger UI | Spring Cloud Gateway |
+| `config-server` | внешняя Git-backed конфигурация | Spring Cloud Config |
 | `eureka-server` | service registry/discovery | Spring Cloud Netflix Eureka |
 
-### Соответствие требованиям
+### Соответствие заданию
 
-- Все прикладные сервисы и Gateway регистрируются в Eureka.
-- Порты, БД, Eureka, Feign и Resilience4j настраиваются через Config Server.
-- Gateway маршрутизирует `/api/messages/**` в `message-service`, остальные `/api/**` — в `academic-service`.
-- Межсервисные вызовы идут через OpenFeign по service id, без жёстких URL.
-- Feign обёрнут Spring Cloud Circuit Breaker + Resilience4j. Для обоих направлений есть fallback.
-- `message-service` — полностью реактивный WebFlux + R2DBC с реактивными транзакциями.
-- `academic-service` сочетает Reactor и JPA: internal directory возвращает `Mono`, а JDBC-работа изолирована на `Schedulers.boundedElastic()`.
+- `Assignment Service` — требуемый сервис на Reactor + R2DBC.
+- `Grades Service` — требуемый реактивный API на Reactor + Spring Data JPA. Блокирующие JPA-вызовы
+  вынесены на `Schedulers.boundedElastic()`.
+- Межсервисные вызовы выполняются OpenFeign по service id и защищены Spring Cloud Circuit
+  Breaker + Resilience4j fallback.
+- Все четыре бизнес-сервиса, Gateway и Config Server регистрируются в Eureka.
+- Config Server читает профили из Git-репозитория `config-repo/`.
+- Все внешние API и OpenAPI-описания агрегированы Gateway.
+- JaCoCo проверяет порог line coverage сервисного слоя `≥ 70%` на фазе `verify`.
 
 ## Запуск
 
-Требуются Docker Compose и свободные порты `5432`, `5433`, `8080`, `8081`, `8082`, `8761`, `8888`.
+Нужны Docker Compose и свободные порты `5432–5435`, `8080–8084`, `8761`, `8888`.
+Переопределить порты и параметры можно в `.env` по образцу `.env.example`.
 
 ```bash
-docker compose up --build
+docker compose up -d --build
+docker compose ps
 ```
 
-После запуска:
+После старта:
 
-- API через Gateway: http://localhost:8080/api/users
+- API Gateway: http://localhost:8080
+- единый Swagger UI: http://localhost:8080/swagger-ui
 - Eureka UI: http://localhost:8761
-- Config Server: http://localhost:8888/academic-service/default
-- Academic Swagger: http://localhost:8081/swagger-ui/index.html
-- Message Swagger: http://localhost:8082/swagger-ui/index.html
+- Config Server: http://localhost:8888/user-service/default
 - health: `http://localhost:<port>/actuator/health`
 
 Остановка без удаления данных:
@@ -70,163 +77,127 @@ docker compose up --build
 docker compose down
 ```
 
-Удаление обоих тестовых БД:
+Полный сброс четырёх БД:
 
 ```bash
 docker compose down -v
 ```
 
-## Примеры
-
-Список пользователей через Gateway:
-
-```bash
-curl http://localhost:8080/api/users
-```
-
-Личное сообщение (валидация отправителя и адресатов выполняется Feign-вызовом):
-
-```bash
-curl -X POST http://localhost:8080/api/messages \
-  -H 'Content-Type: application/json' \
-  -d '{"senderId":2,"recipientIds":[4,7],"subject":"Тест","body":"Сообщение"}'
-```
-
-Рассылка классу:
-
-```bash
-curl -X POST http://localhost:8080/api/messages/broadcast \
-  -H 'Content-Type: application/json' \
-  -d '{"senderId":2,"scope":"CLASS","classId":1,"audience":"ALL","subject":"Собрание","body":"В пятницу"}'
-```
-
-Выставление оценки создаёт Feign-уведомление в `message-service`:
-
-```bash
-curl -X POST http://localhost:8080/api/assignments/1/grade \
-  -H 'Content-Type: application/json' \
-  -d '{"studentId":1,"grade":5}'
-```
-
 ## Демонстрация преподавателю
 
-Все пользовательские запросы ниже идут через Gateway на `localhost:8080`. После запуска дайте
-Eureka около 30 секунд на первоначальное обновление registry.
+Все бизнес-запросы ниже идут только через Gateway (`localhost:8080`). После первого запуска
+дайте Eureka около 30 секунд на первичное обновление registry.
 
-1. Покажите семь изолированных контейнеров и их healthcheck:
-
-   ```bash
-   docker compose ps
-   ```
-
-   В результате оба PostgreSQL, Eureka, Config Server, два бизнес-сервиса и Gateway должны иметь
-   статус `healthy`.
-
-2. Откройте http://localhost:8761 и покажите четыре приложения со статусом `UP`:
-   `ACADEMIC-SERVICE`, `MESSAGE-SERVICE`, `API-GATEWAY`, `CONFIG-SERVER`.
-
-3. Покажите внешнюю конфигурацию сервисов:
-
-   ```bash
-   curl http://localhost:8888/academic-service/default | jq
-   curl http://localhost:8888/message-service/default | jq
-   ```
-
-   В `propertySources` видны общий `application.yml` и конфигурация выбранного сервиса из
-   `config-repo/`.
-
-4. Проверьте маршрутизацию Gateway в `academic-service`:
-
-   ```bash
-   curl http://localhost:8080/api/users | jq
-   ```
-
-5. Отправьте сообщение. Gateway направит запрос в реактивный `message-service`, тот через Feign
-   запросит имена пользователей у `academic-service`, затем сохранит сообщение через R2DBC:
-
-   ```bash
-   curl -X POST http://localhost:8080/api/messages \
-     -H 'Content-Type: application/json' \
-     -d '{"senderId":2,"recipientIds":[4,7],"subject":"Демонстрация ЛР2","body":"Feign + R2DBC"}' | jq
-
-   curl 'http://localhost:8080/api/messages/inbox?userId=7' | jq
-   ```
-
-6. Покажите обратный Feign-вызов. Оценка сохраняется в JPA-сервисе, после чего уведомление
-   создаётся в R2DBC-сервисе для ученика и его родителя:
-
-   ```bash
-   curl -X POST http://localhost:8080/api/assignments/1/grade \
-     -H 'Content-Type: application/json' \
-     -d '{"studentId":1,"grade":5}' | jq
-
-   curl 'http://localhost:8080/api/messages/inbox?userId=7' | jq
-   ```
-
-   В первом ответе должны присутствовать `notificationId` и `notifiedRecipients: 2`, а во втором —
-   сообщение типа `GRADE_NOTIFICATION`.
-
-7. Покажите Circuit Breaker и fallback:
-
-   ```bash
-   docker compose stop academic-service
-
-   for i in {1..12}; do
-     curl -s -o /dev/null -w "attempt $i: HTTP %{http_code}\n" \
-       -X POST http://localhost:8080/api/messages \
-       -H 'Content-Type: application/json' \
-       -d '{"senderId":2,"recipientIds":[4],"subject":"CB demo","body":"service unavailable"}'
-   done
-
-   curl http://localhost:8082/actuator/circuitbreakers | jq
-   ```
-
-   Запросы возвращают контролируемый `503`, а breaker
-   `AcademicClientresolveDirectDirectAudienceRequest` переходит в `OPEN`.
-
-   Верните сервис и продемонстрируйте восстановление:
-
-   ```bash
-   docker compose start academic-service
-   sleep 35
-
-   for i in {1..3}; do
-     curl -s -o /dev/null -w "recovery $i: HTTP %{http_code}\n" \
-       -X POST http://localhost:8080/api/messages \
-       -H 'Content-Type: application/json' \
-       -d '{"senderId":2,"recipientIds":[4],"subject":"CB recovery","body":"service available"}'
-   done
-
-   curl http://localhost:8082/actuator/circuitbreakers | jq
-   ```
-
-   После трёх ответов `201` состояние снова будет `CLOSED`.
-
-Для показа реализации Reactor откройте `ReactiveMessageService` (`Mono`, `Flux`,
-`TransactionalOperator`) и `ReactiveDirectoryService` (`Mono.fromCallable` и
-`Schedulers.boundedElastic()` для безопасного вызова JPA).
-
-## Конфигурация
-
-Центральные файлы лежат в `config-repo/`:
-
-- `application.yml` — Eureka, Feign timeouts, Circuit Breaker;
-- `academic-service.yml` — JDBC/JPA/Liquibase;
-- `message-service.yml` — R2DBC и SQL initialization;
-- `api-gateway.yml` — Gateway routes.
-
-Значения можно переопределить через `.env`; все поддерживаемые переменные видны в `docker-compose.yml`.
-
-## Сборка и тесты
-
-Проект собирается на Java 21:
+### 1. Инфраструктура, Eureka и Config Server
 
 ```bash
-mvn clean test
+docker compose ps
+curl -s http://localhost:8888/assignment-service/default | jq '.name, .propertySources[].name'
+curl -s http://localhost:8888/grades-service/default | jq '.name, .propertySources[].name'
 ```
 
-Интеграционные тесты требуют Docker. Они проверяют исходные сценарии ЛР1 на реальном PostgreSQL,
-межсервисный контракт уведомлений и реактивную R2DBC-запись/inbox.
+В `docker compose ps` должны быть 11 healthy-контейнеров. В Eureka UI будут `USER-SERVICE`,
+`ASSIGNMENT-SERVICE`, `GRADES-SERVICE`, `MESSAGE-SERVICE`, `API-GATEWAY` и `CONFIG-SERVER` со статусом `UP`.
+Ответ Config Server должен содержать Git property sources из `config-repo`.
 
-> Если системный Maven запущен на JDK новее 21, укажите `JAVA_HOME` на JDK 21. Docker-сборка уже
+### 2. Gateway и единый Swagger
+
+```bash
+curl -s http://localhost:8080/api/users | jq
+curl -s http://localhost:8080/api/assignments | jq
+curl -s http://localhost:8080/docs/grades/v3/api-docs | jq '.info.title, .paths | keys'
+```
+
+Откройте http://localhost:8080/swagger-ui и переключите выпадающий список между четырьмя
+микросервисами.
+
+### 3. Reactor + R2DBC и Feign: Assignment Service
+
+Создайте ДЗ. Assignment Service через Feign проверит у User Service, что учитель ведёт
+указанный предмет в классе, и сохранит запись через R2DBC:
+
+```bash
+curl -s -X POST http://localhost:8080/api/assignments \
+  -H 'Content-Type: application/json' \
+  -d '{"teacherId":1,"classId":1,"subjectId":1,"title":"Демо ЛР2","description":"Feign + Reactor + R2DBC","dueDate":"2027-01-31"}' | jq
+
+curl -s 'http://localhost:8080/api/assignments?size=2' | jq
+curl -si 'http://localhost:8080/api/assignments/page?page=0&size=2'
+```
+
+В первом ответе будет `201`, cursor endpoint вернёт `nextCursor/hasNext`, а page endpoint —
+заголовок `X-Total-Count`.
+
+### 4. Reactor + JPA и цепочка Feign-вызовов: Grades Service
+
+В demo-данных есть решение ученика `studentId=1` по заданию `assignmentId=1`:
+
+```bash
+curl -s -X POST http://localhost:8080/api/assignments/1/grade \
+  -H 'Content-Type: application/json' \
+  -d '{"studentId":1,"grade":5}' | jq
+
+curl -s http://localhost:8080/api/users/4/grades | jq
+curl -s 'http://localhost:8080/api/messages/inbox?userId=7' | jq
+```
+
+Grades Service получит решение из Assignment Service, аудиторию из User Service, сохранит
+оценку через JPA и вызовет Message Service. В ответе будут `notificationId` и
+`notifiedRecipients: 2`, а в inbox родителя — `GRADE_NOTIFICATION`.
+
+### 5. Circuit Breaker и fallback
+
+Остановите User Service и создайте серию Feign-вызовов из Message Service:
+
+```bash
+docker compose stop user-service
+
+for i in {1..12}; do
+  curl -s -o /dev/null -w "attempt $i: HTTP %{http_code}\n" \
+    -X POST http://localhost:8080/api/messages \
+    -H 'Content-Type: application/json' \
+    -d '{"senderId":2,"recipientIds":[4],"subject":"CB demo","body":"User Service unavailable"}'
+done
+
+curl -s http://localhost:8082/actuator/circuitbreakers | jq
+```
+
+Вместо неконтролируемой ошибки fallback вернёт `503`, а после пяти неудач breaker перейдёт в
+`OPEN`. Затем верните сервис, дождитесь Eureka и повторите вызовы:
+
+```bash
+docker compose start user-service
+sleep 35
+
+for i in {1..3}; do
+  curl -s -o /dev/null -w "recovery $i: HTTP %{http_code}\n" \
+    -X POST http://localhost:8080/api/messages \
+    -H 'Content-Type: application/json' \
+    -d '{"senderId":2,"recipientIds":[4],"subject":"CB recovery","body":"User Service available"}'
+done
+```
+
+После half-open проб breaker вернётся в `CLOSED`.
+
+## Сборка, тесты и покрытие
+
+Проект собирается на Java 21. Интеграционные тесты используют реальный PostgreSQL через
+Testcontainers. Фаза `verify` также строит JaCoCo-отчёты и проваливает сборку при покрытии
+сервисного слоя ниже 70%.
+
+```bash
+mvn clean verify
+```
+
+Отчёт каждого сервиса: `services/<service>/target/site/jacoco/index.html`.
+
+> Если системный Maven запущен на JDK новее 21, укажите `JAVA_HOME` на JDK 21. Docker-сборка
 > зафиксирована на Eclipse Temurin 21.
+
+## Центральная конфигурация
+
+В `config-repo/` лежат:
+
+- `application.yml` — общие Eureka, Feign timeout и Resilience4j настройки;
+- `user-service.yml`, `assignment-service.yml`, `grades-service.yml`, `message-service.yml` — порты и БД;
+- `api-gateway.yml` — маршруты Gateway и агрегация OpenAPI.

@@ -10,7 +10,7 @@ import com.lab.message.domain.MessageEntity;
 import com.lab.message.domain.MessageType;
 import com.lab.message.domain.RecipientEntity;
 import com.lab.message.exception.NotFoundException;
-import com.lab.message.integration.AcademicClient;
+import com.lab.message.integration.UserClient;
 import com.lab.message.integration.AudienceResponse;
 import com.lab.message.integration.BroadcastAudienceRequest;
 import com.lab.message.integration.DirectAudienceRequest;
@@ -32,11 +32,11 @@ import java.util.List;
 public class ReactiveMessageService {
     private final MessageRepository messageRepository;
     private final RecipientRepository recipientRepository;
-    private final AcademicClient academicClient;
+    private final UserClient userClient;
     private final TransactionalOperator transactionalOperator;
 
     public Mono<MessageResponse> sendDirect(DirectMessageRequest request) {
-        return Mono.fromCallable(() -> academicClient.resolveDirect(
+        return Mono.fromCallable(() -> userClient.resolveDirect(
                         new DirectAudienceRequest(request.senderId(), request.recipientIds())))
                 .subscribeOn(Schedulers.boundedElastic())
                 .flatMap(audience -> saveMessage(audience, request.subject(), request.body(), MessageType.DIRECT));
@@ -45,7 +45,7 @@ public class ReactiveMessageService {
     public Mono<MessageResponse> broadcast(BroadcastRequest request) {
         BroadcastAudienceRequest audienceRequest = new BroadcastAudienceRequest(
                 request.senderId(), request.scope(), request.classId(), request.year(), request.audience());
-        return Mono.fromCallable(() -> academicClient.resolveBroadcast(audienceRequest))
+        return Mono.fromCallable(() -> userClient.resolveBroadcast(audienceRequest))
                 .subscribeOn(Schedulers.boundedElastic())
                 .flatMap(audience -> saveMessage(audience, request.subject(), request.body(), MessageType.BROADCAST));
     }

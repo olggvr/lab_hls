@@ -8,17 +8,15 @@ x-health: &health
   retries: 30
 
 services:
-  academic-db:
+  user-db:
     <<: *app
     image: postgres:16.4-alpine
     environment:
-      POSTGRES_DB: academic
+      POSTGRES_DB: users
       POSTGRES_USER: ${DB_USER:-school}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-school}
-    ports:
-      - "${ACADEMIC_DB_PORT:-5432}:5432"
-    volumes:
-      - academic-data:/var/lib/postgresql/data
+    ports: ["${USER_DB_PORT:-5432}:5432"]
+    volumes: [user-data:/var/lib/postgresql/data]
     healthcheck:
       <<: *health
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
@@ -30,10 +28,34 @@ services:
       POSTGRES_DB: messages
       POSTGRES_USER: ${DB_USER:-school}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-school}
-    ports:
-      - "${MESSAGE_DB_PORT:-5433}:5432"
-    volumes:
-      - message-data:/var/lib/postgresql/data
+    ports: ["${MESSAGE_DB_PORT:-5433}:5432"]
+    volumes: [message-data:/var/lib/postgresql/data]
+    healthcheck:
+      <<: *health
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+
+  assignment-db:
+    <<: *app
+    image: postgres:16.4-alpine
+    environment:
+      POSTGRES_DB: assignments
+      POSTGRES_USER: ${DB_USER:-school}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-school}
+    ports: ["${ASSIGNMENT_DB_PORT:-5434}:5432"]
+    volumes: [assignment-data:/var/lib/postgresql/data]
+    healthcheck:
+      <<: *health
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+
+  grades-db:
+    <<: *app
+    image: postgres:16.4-alpine
+    environment:
+      POSTGRES_DB: grades
+      POSTGRES_USER: ${DB_USER:-school}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-school}
+    ports: ["${GRADES_DB_PORT:-5435}:5432"]
+    volumes: [grades-data:/var/lib/postgresql/data]
     healthcheck:
       <<: *health
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
@@ -42,10 +64,8 @@ services:
     <<: *app
     build:
       context: .
-      args:
-        MODULE: infrastructure/eureka-server
-    ports:
-      - "${EUREKA_PORT:-8761}:8761"
+      args: {MODULE: infrastructure/eureka-server}
+    ports: ["${EUREKA_PORT:-8761}:8761"]
     healthcheck:
       <<: *health
       test: ["CMD-SHELL", "wget -q -O- http://localhost:8761/actuator/health | grep -q UP"]
@@ -54,42 +74,36 @@ services:
     <<: *app
     build:
       context: .
-      args:
-        MODULE: infrastructure/config-server
+      args: {MODULE: infrastructure/config-server}
     depends_on:
-      eureka-server:
-        condition: service_healthy
+      eureka-server: {condition: service_healthy}
     environment:
       EUREKA_URL: http://eureka-server:8761/eureka/
-      CONFIG_REPO: file:/config-repo
-    volumes:
-      - ./config-repo:/config-repo:ro
-    ports:
-      - "${CONFIG_PORT:-8888}:8888"
+      CONFIG_GIT_URI: file:/config-source
+      CONFIG_SEARCH_PATHS: config-repo
+      CONFIG_GIT_LABEL: main
+    volumes: [./:/config-source:ro]
+    ports: ["${CONFIG_PORT:-8888}:8888"]
     healthcheck:
       <<: *health
       test: ["CMD-SHELL", "wget -q -O- http://localhost:8888/actuator/health | grep -q UP"]
 
-  academic-service:
+  user-service:
     <<: *app
     build:
       context: .
-      args:
-        MODULE: services/academic-service
+      args: {MODULE: services/user-service}
     depends_on:
-      academic-db:
-        condition: service_healthy
-      config-server:
-        condition: service_healthy
+      user-db: {condition: service_healthy}
+      config-server: {condition: service_healthy}
     environment:
       CONFIG_SERVER_URL: http://config-server:8888
       EUREKA_URL: http://eureka-server:8761/eureka/
-      ACADEMIC_DB_URL: jdbc:postgresql://academic-db:5432/academic
-      ACADEMIC_DB_USER: ${DB_USER:-school}
-      ACADEMIC_DB_PASSWORD: ${DB_PASSWORD:-school}
-      ACADEMIC_LIQUIBASE_CONTEXTS: ${ACADEMIC_LIQUIBASE_CONTEXTS:-demo}
-    ports:
-      - "${ACADEMIC_PORT:-8081}:8081"
+      USER_DB_URL: jdbc:postgresql://user-db:5432/users
+      USER_DB_USER: ${DB_USER:-school}
+      USER_DB_PASSWORD: ${DB_PASSWORD:-school}
+      USER_LIQUIBASE_CONTEXTS: ${USER_LIQUIBASE_CONTEXTS:-demo}
+    ports: ["${USER_PORT:-8081}:8081"]
     healthcheck:
       <<: *health
       test: ["CMD-SHELL", "wget -q -O- http://localhost:8081/actuator/health | grep -q UP"]
@@ -98,43 +112,78 @@ services:
     <<: *app
     build:
       context: .
-      args:
-        MODULE: services/message-service
+      args: {MODULE: services/message-service}
     depends_on:
-      message-db:
-        condition: service_healthy
-      config-server:
-        condition: service_healthy
-      academic-service:
-        condition: service_healthy
+      message-db: {condition: service_healthy}
+      config-server: {condition: service_healthy}
+      user-service: {condition: service_healthy}
     environment:
       CONFIG_SERVER_URL: http://config-server:8888
       EUREKA_URL: http://eureka-server:8761/eureka/
       MESSAGE_DB_URL: r2dbc:postgresql://message-db:5432/messages
       MESSAGE_DB_USER: ${DB_USER:-school}
       MESSAGE_DB_PASSWORD: ${DB_PASSWORD:-school}
-    ports:
-      - "${MESSAGE_PORT:-8082}:8082"
+    ports: ["${MESSAGE_PORT:-8082}:8082"]
     healthcheck:
       <<: *health
       test: ["CMD-SHELL", "wget -q -O- http://localhost:8082/actuator/health | grep -q UP"]
+
+  assignment-service:
+    <<: *app
+    build:
+      context: .
+      args: {MODULE: services/assignment-service}
+    depends_on:
+      assignment-db: {condition: service_healthy}
+      config-server: {condition: service_healthy}
+      user-service: {condition: service_healthy}
+    environment:
+      CONFIG_SERVER_URL: http://config-server:8888
+      EUREKA_URL: http://eureka-server:8761/eureka/
+      ASSIGNMENT_DB_URL: r2dbc:postgresql://assignment-db:5432/assignments
+      ASSIGNMENT_DB_USER: ${DB_USER:-school}
+      ASSIGNMENT_DB_PASSWORD: ${DB_PASSWORD:-school}
+    ports: ["${ASSIGNMENT_PORT:-8083}:8083"]
+    healthcheck:
+      <<: *health
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8083/actuator/health | grep -q UP"]
+
+  grades-service:
+    <<: *app
+    build:
+      context: .
+      args: {MODULE: services/grades-service}
+    depends_on:
+      grades-db: {condition: service_healthy}
+      config-server: {condition: service_healthy}
+      user-service: {condition: service_healthy}
+      assignment-service: {condition: service_healthy}
+      message-service: {condition: service_healthy}
+    environment:
+      CONFIG_SERVER_URL: http://config-server:8888
+      EUREKA_URL: http://eureka-server:8761/eureka/
+      GRADES_DB_URL: jdbc:postgresql://grades-db:5432/grades
+      GRADES_DB_USER: ${DB_USER:-school}
+      GRADES_DB_PASSWORD: ${DB_PASSWORD:-school}
+    ports: ["${GRADES_PORT:-8084}:8084"]
+    healthcheck:
+      <<: *health
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8084/actuator/health | grep -q UP"]
 
   api-gateway:
     <<: *app
     build:
       context: .
-      args:
-        MODULE: infrastructure/api-gateway
+      args: {MODULE: infrastructure/api-gateway}
     depends_on:
-      academic-service:
-        condition: service_healthy
-      message-service:
-        condition: service_healthy
+      user-service: {condition: service_healthy}
+      assignment-service: {condition: service_healthy}
+      grades-service: {condition: service_healthy}
+      message-service: {condition: service_healthy}
     environment:
       CONFIG_SERVER_URL: http://config-server:8888
       EUREKA_URL: http://eureka-server:8761/eureka/
-    ports:
-      - "${GATEWAY_PORT:-8080}:8080"
+    ports: ["${GATEWAY_PORT:-8080}:8080"]
     healthcheck:
       <<: *health
       test: ["CMD-SHELL", "wget -q -O- http://localhost:8080/actuator/health | grep -q UP"]
@@ -143,5 +192,7 @@ networks:
   school-net:
 
 volumes:
-  academic-data:
+  user-data:
   message-data:
+  assignment-data:
+  grades-data:

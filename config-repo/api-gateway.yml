@@ -7,15 +7,64 @@ spring:
       server:
         webflux:
           routes:
+            - id: grades-assignment-api
+              uri: lb://grades-service
+              predicates:
+                - Path=/api/assignments/*/grade
+            - id: grades-user-api
+              uri: lb://grades-service
+              predicates:
+                - Path=/api/users/*/grades
             - id: message-service
               uri: lb://message-service
               predicates:
                 - Path=/api/messages/**
-            - id: academic-service
-              uri: lb://academic-service
+            - id: assignment-service
+              uri: lb://assignment-service
+              predicates:
+                - Path=/api/assignments/**
+            - id: user-service
+              uri: lb://user-service
               predicates:
                 - Path=/api/**
+            - id: user-docs
+              uri: lb://user-service
+              predicates:
+                - Path=/docs/user/v3/api-docs
+              filters:
+                - StripPrefix=2
+            - id: assignment-docs
+              uri: lb://assignment-service
+              predicates:
+                - Path=/docs/assignment/v3/api-docs
+              filters:
+                - StripPrefix=2
+            - id: grades-docs
+              uri: lb://grades-service
+              predicates:
+                - Path=/docs/grades/v3/api-docs
+              filters:
+                - StripPrefix=2
+            - id: message-docs
+              uri: lb://message-service
+              predicates:
+                - Path=/docs/message/v3/api-docs
+              filters:
+                - StripPrefix=2
           discovery:
             locator:
               enabled: true
               lower-case-service-id: true
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui
+    urls:
+      - name: User Service
+        url: /docs/user/v3/api-docs
+      - name: Assignment Service
+        url: /docs/assignment/v3/api-docs
+      - name: Grades Service
+        url: /docs/grades/v3/api-docs
+      - name: Message Service
+        url: /docs/message/v3/api-docs

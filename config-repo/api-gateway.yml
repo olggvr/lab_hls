@@ -1,0 +1,21 @@
+server:
+  port: ${GATEWAY_PORT:8080}
+
+spring:
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: message-service
+              uri: lb://message-service
+              predicates:
+                - Path=/api/messages/**
+            - id: academic-service
+              uri: lb://academic-service
+              predicates:
+                - Path=/api/**
+          discovery:
+            locator:
+              enabled: true
+              lower-case-service-id: true

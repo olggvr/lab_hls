@@ -1,0 +1,18 @@
+spring:
+  liquibase:
+    # Демо-данные (context "demo") в тестах не грузим — каждый тест создаёт свои данные
+    contexts: test
+
+  jpa:
+    hibernate:
+      # Та же проверка синхронизации сущностей со схемой, что и в приложении:
+      # если миграция и Entity разойдутся, упадут все интеграционные тесты
+      ddl-auto: validate
+
+eureka:
+  client:
+    enabled: false
+
+logging:
+  level:
+    org.hibernate.SQL: warn

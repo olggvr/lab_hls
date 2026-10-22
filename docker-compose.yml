@@ -1,40 +1,147 @@
+x-app: &app
+  restart: unless-stopped
+  networks: [school-net]
+
+x-health: &health
+  interval: 5s
+  timeout: 3s
+  retries: 30
+
 services:
-  postgres:
-    # Версия базы зафиксирована точным тегом — такая же, как в Testcontainers
+  academic-db:
+    <<: *app
     image: postgres:16.4-alpine
-    container_name: school-postgres
-    restart: unless-stopped
     environment:
-      POSTGRES_DB: ${DB_NAME:-school}
+      POSTGRES_DB: academic
       POSTGRES_USER: ${DB_USER:-school}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-school}
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "${ACADEMIC_DB_PORT:-5432}:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - academic-data:/var/lib/postgresql/data
     healthcheck:
+      <<: *health
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
 
-  app:
-    build: .
-    container_name: school-app
-    restart: unless-stopped
+  message-db:
+    <<: *app
+    image: postgres:16.4-alpine
+    environment:
+      POSTGRES_DB: messages
+      POSTGRES_USER: ${DB_USER:-school}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-school}
+    ports:
+      - "${MESSAGE_DB_PORT:-5433}:5432"
+    volumes:
+      - message-data:/var/lib/postgresql/data
+    healthcheck:
+      <<: *health
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+
+  eureka-server:
+    <<: *app
+    build:
+      context: .
+      args:
+        MODULE: infrastructure/eureka-server
+    ports:
+      - "${EUREKA_PORT:-8761}:8761"
+    healthcheck:
+      <<: *health
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8761/actuator/health | grep -q UP"]
+
+  config-server:
+    <<: *app
+    build:
+      context: .
+      args:
+        MODULE: infrastructure/config-server
     depends_on:
-      postgres:
+      eureka-server:
         condition: service_healthy
     environment:
-      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-school}
-      DB_USER: ${DB_USER:-school}
-      DB_PASSWORD: ${DB_PASSWORD:-school}
-      # Liquibase накатывает миграции из src/main/resources/db/changelog при старте приложения.
-      # demo — вместе с демо-данными; prod — только схема.
-      LIQUIBASE_CONTEXTS: ${LIQUIBASE_CONTEXTS:-demo}
-      APP_PORT: 8080
+      EUREKA_URL: http://eureka-server:8761/eureka/
+      CONFIG_REPO: file:/config-repo
+    volumes:
+      - ./config-repo:/config-repo:ro
     ports:
-      - "${APP_PORT:-8080}:8080"
+      - "${CONFIG_PORT:-8888}:8888"
+    healthcheck:
+      <<: *health
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8888/actuator/health | grep -q UP"]
+
+  academic-service:
+    <<: *app
+    build:
+      context: .
+      args:
+        MODULE: services/academic-service
+    depends_on:
+      academic-db:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+    environment:
+      CONFIG_SERVER_URL: http://config-server:8888
+      EUREKA_URL: http://eureka-server:8761/eureka/
+      ACADEMIC_DB_URL: jdbc:postgresql://academic-db:5432/academic
+      ACADEMIC_DB_USER: ${DB_USER:-school}
+      ACADEMIC_DB_PASSWORD: ${DB_PASSWORD:-school}
+      ACADEMIC_LIQUIBASE_CONTEXTS: ${ACADEMIC_LIQUIBASE_CONTEXTS:-demo}
+    ports:
+      - "${ACADEMIC_PORT:-8081}:8081"
+    healthcheck:
+      <<: *health
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8081/actuator/health | grep -q UP"]
+
+  message-service:
+    <<: *app
+    build:
+      context: .
+      args:
+        MODULE: services/message-service
+    depends_on:
+      message-db:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      academic-service:
+        condition: service_healthy
+    environment:
+      CONFIG_SERVER_URL: http://config-server:8888
+      EUREKA_URL: http://eureka-server:8761/eureka/
+      MESSAGE_DB_URL: r2dbc:postgresql://message-db:5432/messages
+      MESSAGE_DB_USER: ${DB_USER:-school}
+      MESSAGE_DB_PASSWORD: ${DB_PASSWORD:-school}
+    ports:
+      - "${MESSAGE_PORT:-8082}:8082"
+    healthcheck:
+      <<: *health
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8082/actuator/health | grep -q UP"]
+
+  api-gateway:
+    <<: *app
+    build:
+      context: .
+      args:
+        MODULE: infrastructure/api-gateway
+    depends_on:
+      academic-service:
+        condition: service_healthy
+      message-service:
+        condition: service_healthy
+    environment:
+      CONFIG_SERVER_URL: http://config-server:8888
+      EUREKA_URL: http://eureka-server:8761/eureka/
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    healthcheck:
+      <<: *health
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8080/actuator/health | grep -q UP"]
+
+networks:
+  school-net:
 
 volumes:
-  pgdata:
+  academic-data:
+  message-data:

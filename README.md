@@ -108,6 +108,104 @@ curl -X POST http://localhost:8080/api/assignments/1/grade \
   -d '{"studentId":1,"grade":5}'
 ```
 
+## Демонстрация преподавателю
+
+Все пользовательские запросы ниже идут через Gateway на `localhost:8080`. После запуска дайте
+Eureka около 30 секунд на первоначальное обновление registry.
+
+1. Покажите семь изолированных контейнеров и их healthcheck:
+
+   ```bash
+   docker compose ps
+   ```
+
+   В результате оба PostgreSQL, Eureka, Config Server, два бизнес-сервиса и Gateway должны иметь
+   статус `healthy`.
+
+2. Откройте http://localhost:8761 и покажите четыре приложения со статусом `UP`:
+   `ACADEMIC-SERVICE`, `MESSAGE-SERVICE`, `API-GATEWAY`, `CONFIG-SERVER`.
+
+3. Покажите внешнюю конфигурацию сервисов:
+
+   ```bash
+   curl http://localhost:8888/academic-service/default | jq
+   curl http://localhost:8888/message-service/default | jq
+   ```
+
+   В `propertySources` видны общий `application.yml` и конфигурация выбранного сервиса из
+   `config-repo/`.
+
+4. Проверьте маршрутизацию Gateway в `academic-service`:
+
+   ```bash
+   curl http://localhost:8080/api/users | jq
+   ```
+
+5. Отправьте сообщение. Gateway направит запрос в реактивный `message-service`, тот через Feign
+   запросит имена пользователей у `academic-service`, затем сохранит сообщение через R2DBC:
+
+   ```bash
+   curl -X POST http://localhost:8080/api/messages \
+     -H 'Content-Type: application/json' \
+     -d '{"senderId":2,"recipientIds":[4,7],"subject":"Демонстрация ЛР2","body":"Feign + R2DBC"}' | jq
+
+   curl 'http://localhost:8080/api/messages/inbox?userId=7' | jq
+   ```
+
+6. Покажите обратный Feign-вызов. Оценка сохраняется в JPA-сервисе, после чего уведомление
+   создаётся в R2DBC-сервисе для ученика и его родителя:
+
+   ```bash
+   curl -X POST http://localhost:8080/api/assignments/1/grade \
+     -H 'Content-Type: application/json' \
+     -d '{"studentId":1,"grade":5}' | jq
+
+   curl 'http://localhost:8080/api/messages/inbox?userId=7' | jq
+   ```
+
+   В первом ответе должны присутствовать `notificationId` и `notifiedRecipients: 2`, а во втором —
+   сообщение типа `GRADE_NOTIFICATION`.
+
+7. Покажите Circuit Breaker и fallback:
+
+   ```bash
+   docker compose stop academic-service
+
+   for i in {1..12}; do
+     curl -s -o /dev/null -w "attempt $i: HTTP %{http_code}\n" \
+       -X POST http://localhost:8080/api/messages \
+       -H 'Content-Type: application/json' \
+       -d '{"senderId":2,"recipientIds":[4],"subject":"CB demo","body":"service unavailable"}'
+   done
+
+   curl http://localhost:8082/actuator/circuitbreakers | jq
+   ```
+
+   Запросы возвращают контролируемый `503`, а breaker
+   `AcademicClientresolveDirectDirectAudienceRequest` переходит в `OPEN`.
+
+   Верните сервис и продемонстрируйте восстановление:
+
+   ```bash
+   docker compose start academic-service
+   sleep 35
+
+   for i in {1..3}; do
+     curl -s -o /dev/null -w "recovery $i: HTTP %{http_code}\n" \
+       -X POST http://localhost:8080/api/messages \
+       -H 'Content-Type: application/json' \
+       -d '{"senderId":2,"recipientIds":[4],"subject":"CB recovery","body":"service available"}'
+   done
+
+   curl http://localhost:8082/actuator/circuitbreakers | jq
+   ```
+
+   После трёх ответов `201` состояние снова будет `CLOSED`.
+
+Для показа реализации Reactor откройте `ReactiveMessageService` (`Mono`, `Flux`,
+`TransactionalOperator`) и `ReactiveDirectoryService` (`Mono.fromCallable` и
+`Schedulers.boundedElastic()` для безопасного вызова JPA).
+
 ## Конфигурация
 
 Центральные файлы лежат в `config-repo/`:

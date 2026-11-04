@@ -17,6 +17,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.containers.PostgreSQLContainer;
+import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.time.LocalDateTime;
@@ -54,13 +55,13 @@ class ReactiveGradeServiceIntegrationTest {
 
     @Test
     void jpaWorkRunsBehindReactiveApiAndSendsNotification() {
-        when(assignmentClient.gradingContext(1L, 10L)).thenReturn(new GradingContextResponse(
+        when(assignmentClient.gradingContext(1L, 10L)).thenReturn(Mono.just(new GradingContextResponse(
                 100L, 1L, 10L, "Student", "https://files.test/a.pdf", LocalDateTime.now(),
-                20L, 2L, "Teacher", "Homework", "Math"));
+                20L, 2L, "Teacher", "Homework", "Math")));
         when(userClient.gradeAudience(10L)).thenReturn(new GradeAudienceResponse(
                 10L, "Student", List.of(4L, 7L)));
         when(userClient.gradeScope(4L)).thenReturn(new GradeScopeResponse("STUDENT", List.of(10L), null));
-        when(messageClient.sendGradeNotification(any())).thenReturn(new NotificationResponse(500L, 2, true));
+        when(messageClient.sendGradeNotification(any())).thenReturn(Mono.just(new NotificationResponse(500L, 2, true)));
 
         StepVerifier.create(service.grade(1L, new GradeRequest(10L, 5)))
                 .assertNext(response -> {

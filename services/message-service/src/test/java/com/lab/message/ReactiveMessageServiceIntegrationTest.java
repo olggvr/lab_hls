@@ -17,6 +17,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.containers.PostgreSQLContainer;
 import reactor.test.StepVerifier;
+import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.Set;
@@ -51,7 +52,7 @@ class ReactiveMessageServiceIntegrationTest {
     @Test
     void directMessageIsStoredAndAppearsInReactiveInbox() {
         when(userClient.resolveDirect(any()))
-                .thenReturn(new AudienceResponse(1L, "Teacher", List.of(2L, 3L)));
+                .thenReturn(Mono.just(new AudienceResponse(1L, "Teacher", List.of(2L, 3L))));
 
         StepVerifier.create(service.sendDirect(new DirectMessageRequest(
                         1L, Set.of(2L, 3L), "Subject", "Body"))
@@ -67,7 +68,7 @@ class ReactiveMessageServiceIntegrationTest {
     @Test
     void supportsBroadcastGradeNotificationReadingAndDeleting() {
         when(userClient.resolveBroadcast(any()))
-                .thenReturn(new AudienceResponse(1L, "Teacher", List.of(2L, 2L, 3L)));
+                .thenReturn(Mono.just(new AudienceResponse(1L, "Teacher", List.of(2L, 2L, 3L))));
 
         var broadcast = service.broadcast(new BroadcastRequest(
                 1L, BroadcastScope.SCHOOL, null, null, BroadcastAudience.ALL,

@@ -22,7 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.reactive.TransactionalOperator;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -36,17 +35,14 @@ public class ReactiveMessageService {
     private final TransactionalOperator transactionalOperator;
 
     public Mono<MessageResponse> sendDirect(DirectMessageRequest request) {
-        return Mono.fromCallable(() -> userClient.resolveDirect(
-                        new DirectAudienceRequest(request.senderId(), request.recipientIds())))
-                .subscribeOn(Schedulers.boundedElastic())
+        return userClient.resolveDirect(new DirectAudienceRequest(request.senderId(), request.recipientIds()))
                 .flatMap(audience -> saveMessage(audience, request.subject(), request.body(), MessageType.DIRECT));
     }
 
     public Mono<MessageResponse> broadcast(BroadcastRequest request) {
         BroadcastAudienceRequest audienceRequest = new BroadcastAudienceRequest(
                 request.senderId(), request.scope(), request.classId(), request.year(), request.audience());
-        return Mono.fromCallable(() -> userClient.resolveBroadcast(audienceRequest))
-                .subscribeOn(Schedulers.boundedElastic())
+        return userClient.resolveBroadcast(audienceRequest)
                 .flatMap(audience -> saveMessage(audience, request.subject(), request.body(), MessageType.BROADCAST));
     }
 

@@ -28,18 +28,15 @@ public class ReactiveGradeService {
     private final GradePersistenceService persistenceService;
 
     public Mono<GradeResponse> grade(Long assignmentId, GradeRequest request) {
-        return Mono.fromCallable(() -> {
-                    GradingContextResponse context = assignmentClient.gradingContext(assignmentId, request.studentId());
-                    GradeAudienceResponse audience = userClient.gradeAudience(request.studentId());
-                    return new GradeContext(context, audience);
-                })
-                .subscribeOn(Schedulers.boundedElastic())
+        return assignmentClient.gradingContext(assignmentId, request.studentId())
+                .zipWith(Mono.fromCallable(() -> userClient.gradeAudience(request.studentId()))
+                                .subscribeOn(Schedulers.boundedElastic()),
+                        GradeContext::new)
                 .flatMap(context -> Mono.fromCallable(() -> persistenceService.save(context.assignment(), request.grade()))
                         .subscribeOn(Schedulers.boundedElastic())
                         .map(saved -> new PersistedGrade(context, saved)))
-                .flatMap(result -> Mono.fromCallable(() -> messageClient.sendGradeNotification(
-                                notification(result.context().assignment(), result.context().audience(), request.grade())))
-                        .subscribeOn(Schedulers.boundedElastic())
+                .flatMap(result -> messageClient.sendGradeNotification(
+                                notification(result.context().assignment(), result.context().audience(), request.grade()))
                         .map(notification -> toResponse(result.grade(), notification)));
     }
 

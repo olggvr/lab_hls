@@ -6,7 +6,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -16,10 +16,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-
-import java.net.URI;
 
 @RestController
 @RequiredArgsConstructor
@@ -28,19 +27,20 @@ public class MessageController {
     private final ReactiveMessageService messageService;
 
     @PostMapping
-    public Mono<ResponseEntity<MessageResponse>> sendDirect(@Valid @RequestBody DirectMessageRequest request) {
-        return messageService.sendDirect(request)
-                .map(body -> ResponseEntity.created(URI.create("./messages/" + body.id())).body(body));
+    @ResponseStatus(HttpStatus.CREATED)
+    public Mono<MessageResponse> sendDirect(@Valid @RequestBody DirectMessageRequest request) {
+        return messageService.sendDirect(request);
     }
 
     @PostMapping("/broadcast")
-    public Mono<ResponseEntity<MessageResponse>> broadcast(@Valid @RequestBody BroadcastRequest request) {
-        return messageService.broadcast(request).map(body -> ResponseEntity.status(201).body(body));
+    @ResponseStatus(HttpStatus.CREATED)
+    public Mono<MessageResponse> broadcast(@Valid @RequestBody BroadcastRequest request) {
+        return messageService.broadcast(request);
     }
 
     @GetMapping("/{id}")
-    public Mono<ResponseEntity<MessageResponse>> getMessage(@PathVariable Long id) {
-        return messageService.getMessage(id).map(ResponseEntity::ok);
+    public Mono<MessageResponse> getMessage(@PathVariable Long id) {
+        return messageService.getMessage(id);
     }
 
     @GetMapping("/inbox")
@@ -52,13 +52,14 @@ public class MessageController {
     }
 
     @PatchMapping("/{id}/read")
-    public Mono<ResponseEntity<InboxItemResponse>> markRead(
+    public Mono<InboxItemResponse> markRead(
             @PathVariable Long id, @RequestParam @Positive Long userId) {
-        return messageService.markRead(id, userId).map(ResponseEntity::ok);
+        return messageService.markRead(id, userId);
     }
 
     @DeleteMapping("/{id}")
-    public Mono<ResponseEntity<Void>> deleteMessage(@PathVariable Long id) {
-        return messageService.deleteMessage(id).thenReturn(ResponseEntity.noContent().build());
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public Mono<Void> deleteMessage(@PathVariable Long id) {
+        return messageService.deleteMessage(id);
     }
 }

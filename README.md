@@ -15,18 +15,20 @@ client :8080 -------------------> |  API Gateway   |
                   |                       |                       |
           +-------v------+       +--------v-------+       +-------v-------+
           | User Service | <---- | Assignment     | <---- | Grades        |
-          | JPA          | Feign | Service        | Feign | Service       |
+          | JPA          | HTTP  | Service        | HTTP  | Service       |
           | :8081        |       | Reactor/R2DBC  |       | Reactor/JPA   |
           +-------+------+       | :8083          |       | :8084         |
                   ^              +--------+-------+       +-------+-------+
-                  | Feign                 |                       |
-          +-------+---------+             |                       | Feign
+                  | HTTP                  |                       |
+          +-------+---------+             |                       | HTTP
           | Message Service | <-----------+-----------------------+
           | Reactor/R2DBC   |
           | :8082           |
           +-----------------+
 
-Config Server :8888 <--- Git backend: config-repo/*.yml
+HTTP between reactive services: load-balanced WebClient + reactive Circuit Breaker
+Grades -> User: OpenFeign + Circuit Breaker
+Config Server :8888 <--- Git backend: config-repo/<service>/application.yml
 Eureka Server :8761 <--- registration and discovery
 PostgreSQL: user-db, assignment-db, grades-db, message-db
 ```
@@ -46,8 +48,14 @@ PostgreSQL: user-db, assignment-db, grades-db, message-db
 - `Assignment Service` — требуемый сервис на Reactor + R2DBC.
 - `Grades Service` — требуемый реактивный API на Reactor + Spring Data JPA. Блокирующие JPA-вызовы
   вынесены на `Schedulers.boundedElastic()`.
-- Межсервисные вызовы выполняются OpenFeign по service id и защищены Spring Cloud Circuit
-  Breaker + Resilience4j fallback.
+- Вызовы между реактивными сервисами выполняются неблокирующим load-balanced `WebClient` и
+  защищены reactive Spring Cloud Circuit Breaker + Resilience4j fallback.
+- Feign остаётся в цепочке `Grades Service → User Service`, поэтому требование ЛР2 по Feign
+  выполнено; блокирующий вызов изолирован на `boundedElastic`.
+- В `assignment-service` доступ к двум репозиториям разделён: `AssignmentService` работает только
+  с `AssignmentRepository`, `SubmissionService` — только с `SubmissionRepository`.
+- Реактивные контроллеры возвращают `Mono`/`Flux` напрямую; HTTP-статусы задаются аннотациями,
+  без `ResponseEntity`.
 - Все четыре бизнес-сервиса, Gateway и Config Server регистрируются в Eureka.
 - Config Server читает профили из Git-репозитория `config-repo/`.
 - Все внешние API и OpenAPI-описания агрегированы Gateway.
@@ -111,15 +119,15 @@ curl -s http://localhost:8080/docs/grades/v3/api-docs | jq '.info.title, .paths 
 Откройте http://localhost:8080/swagger-ui и переключите выпадающий список между четырьмя
 микросервисами.
 
-### 3. Reactor + R2DBC и Feign: Assignment Service
+### 3. Reactor + R2DBC и reactive WebClient: Assignment Service
 
-Создайте ДЗ. Assignment Service через Feign проверит у User Service, что учитель ведёт
+Создайте ДЗ. Assignment Service через load-balanced WebClient проверит у User Service, что учитель ведёт
 указанный предмет в классе, и сохранит запись через R2DBC:
 
 ```bash
 curl -s -X POST http://localhost:8080/api/assignments \
   -H 'Content-Type: application/json' \
-  -d '{"teacherId":1,"classId":1,"subjectId":1,"title":"Демо ЛР2","description":"Feign + Reactor + R2DBC","dueDate":"2027-01-31"}' | jq
+  -d '{"teacherId":1,"classId":1,"subjectId":1,"title":"Демо ЛР2","description":"WebClient + Reactor + R2DBC","dueDate":"2027-01-31"}' | jq
 
 curl -s 'http://localhost:8080/api/assignments?size=2' | jq
 curl -si 'http://localhost:8080/api/assignments/page?page=0&size=2'
@@ -128,7 +136,7 @@ curl -si 'http://localhost:8080/api/assignments/page?page=0&size=2'
 В первом ответе будет `201`, cursor endpoint вернёт `nextCursor/hasNext`, а page endpoint —
 заголовок `X-Total-Count`.
 
-### 4. Reactor + JPA и цепочка Feign-вызовов: Grades Service
+### 4. Reactor + JPA и цепочка межсервисных вызовов: Grades Service
 
 В demo-данных есть решение ученика `studentId=1` по заданию `assignmentId=1`:
 
@@ -141,13 +149,13 @@ curl -s http://localhost:8080/api/users/4/grades | jq
 curl -s 'http://localhost:8080/api/messages/inbox?userId=7' | jq
 ```
 
-Grades Service получит решение из Assignment Service, аудиторию из User Service, сохранит
-оценку через JPA и вызовет Message Service. В ответе будут `notificationId` и
+Grades Service реактивно получит решение из Assignment Service, через Feign запросит аудиторию
+у User Service, сохранит оценку через JPA и реактивно вызовет Message Service. В ответе будут `notificationId` и
 `notifiedRecipients: 2`, а в inbox родителя — `GRADE_NOTIFICATION`.
 
 ### 5. Circuit Breaker и fallback
 
-Остановите User Service и создайте серию Feign-вызовов из Message Service:
+Остановите User Service и создайте серию reactive WebClient-вызовов из Message Service:
 
 ```bash
 docker compose stop user-service
@@ -196,8 +204,12 @@ mvn clean verify
 
 ## Центральная конфигурация
 
-В `config-repo/` лежат:
+Конфигурация разложена по каталогам, как отдельные приложения Config Server:
 
-- `application.yml` — общие Eureka, Feign timeout и Resilience4j настройки;
-- `user-service.yml`, `assignment-service.yml`, `grades-service.yml`, `message-service.yml` — порты и БД;
-- `api-gateway.yml` — маршруты Gateway и агрегация OpenAPI.
+- `config-repo/common/application.yml` — общие Eureka, Feign timeout и Resilience4j настройки;
+- `config-repo/<service>/application.yml` — отдельный профиль каждого бизнес-сервиса;
+- `config-repo/api-gateway/application.yml` — маршруты Gateway и агрегация OpenAPI.
+
+Config Server ищет конфигурацию по шаблону
+`config-repo/common,config-repo/{application}`, поэтому запрос
+`/assignment-service/default` объединяет общий и сервисный файлы.

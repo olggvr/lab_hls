@@ -1,13 +1,29 @@
 package com.lab.grades.integration;
 
-import org.springframework.cloud.openfeign.FeignClient;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
+import com.lab.grades.exception.DownstreamUnavailableException;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.cloud.client.circuitbreaker.ReactiveCircuitBreaker;
+import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 
-@FeignClient(name = "assignment-service", path = "/internal/assignments", fallback = AssignmentClientFallback.class)
-public interface AssignmentClient {
-    @GetMapping("/{assignmentId}/submissions/by-student/{studentId}")
-    GradingContextResponse gradingContext(
-            @PathVariable("assignmentId") Long assignmentId,
-            @PathVariable("studentId") Long studentId);
+@Component
+public class AssignmentClient {
+    private final WebClient webClient;
+    private final ReactiveCircuitBreaker circuitBreaker;
+
+    public AssignmentClient(WebClient.Builder builder,
+                            @Qualifier("assignmentCircuitBreaker") ReactiveCircuitBreaker circuitBreaker) {
+        this.webClient = builder.clone().baseUrl("http://assignment-service/internal/assignments").build();
+        this.circuitBreaker = circuitBreaker;
+    }
+
+    public Mono<GradingContextResponse> gradingContext(Long assignmentId, Long studentId) {
+        Mono<GradingContextResponse> call = webClient.get()
+                .uri("/{assignmentId}/submissions/by-student/{studentId}", assignmentId, studentId)
+                .retrieve()
+                .bodyToMono(GradingContextResponse.class);
+        return circuitBreaker.run(call, failure -> Mono.error(
+                new DownstreamUnavailableException("Assignment Service временно недоступен")));
+    }
 }

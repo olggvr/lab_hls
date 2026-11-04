@@ -6,7 +6,7 @@ spring:
       server:
         git:
           uri: ${CONFIG_GIT_URI:file:${user.dir}}
-          search-paths: ${CONFIG_SEARCH_PATHS:config-repo}
+          search-paths: config-repo/common,config-repo/{application}
           default-label: ${CONFIG_GIT_LABEL:main}
           clone-on-start: true
           force-pull: true

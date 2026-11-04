@@ -7,9 +7,13 @@ import com.lab.school.entity.Student;
 import com.lab.school.entity.Subject;
 import com.lab.school.entity.Teacher;
 import com.lab.school.entity.User;
+import com.lab.school.dto.message.BroadcastAudience;
+import com.lab.school.dto.message.BroadcastScope;
 import com.lab.school.entity.enums.ParentRelation;
 import com.lab.school.entity.enums.UserRole;
+import com.lab.school.exception.BusinessException;
 import com.lab.school.integration.AssignmentReferenceRequest;
+import com.lab.school.integration.BroadcastAudienceRequest;
 import com.lab.school.integration.DirectAudienceRequest;
 import com.lab.school.integration.StudentReferenceRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -115,6 +119,66 @@ class ReactiveDirectoryServiceTest {
                 .assertNext(scope -> assertThat(scope.studentIds()).containsExactly(40L)).verifyComplete();
         StepVerifier.create(service.resolveGradeScope(2L))
                 .assertNext(scope -> assertThat(scope.teacherId()).isEqualTo(10L)).verifyComplete();
+    }
+
+    @Test
+    void resolvesAllBroadcastScopesAndAudienceVariants() {
+        User parentUser = user(7L, "Parent", UserRole.PARENT);
+        Parent parent = new Parent();
+        parent.setId(50L);
+        parent.setUser(parentUser);
+        ParentStudent parentLink = new ParentStudent(parent, student, ParentRelation.FATHER);
+
+        when(userService.requireUser(2L)).thenReturn(teacherUser);
+        when(studentService.collectStudentsOfClass(20L)).thenReturn(List.of(student));
+        when(studentService.collectStudentsOfParallel(7)).thenReturn(List.of(student));
+        when(studentService.collectAllStudents()).thenReturn(List.of(student));
+        when(parentStudentService.collectLinksOfStudents(List.of(40L))).thenReturn(List.of(parentLink));
+
+        StepVerifier.create(service.resolveBroadcast(new BroadcastAudienceRequest(
+                        2L, BroadcastScope.CLASS, 20L, null, BroadcastAudience.STUDENTS)))
+                .assertNext(result -> assertThat(result.recipientIds()).containsExactly(4L))
+                .verifyComplete();
+        StepVerifier.create(service.resolveBroadcast(new BroadcastAudienceRequest(
+                        2L, BroadcastScope.PARALLEL, null, 7, BroadcastAudience.PARENTS)))
+                .assertNext(result -> assertThat(result.recipientIds()).containsExactly(7L))
+                .verifyComplete();
+        StepVerifier.create(service.resolveBroadcast(new BroadcastAudienceRequest(
+                        2L, BroadcastScope.SCHOOL, null, null, BroadcastAudience.ALL)))
+                .assertNext(result -> assertThat(result.recipientIds()).containsExactly(4L, 7L))
+                .verifyComplete();
+    }
+
+    @Test
+    void rejectsUnauthorizedBroadcastAndMissingScopeArguments() {
+        when(userService.requireUser(4L)).thenReturn(student.getUser());
+        when(userService.requireUser(2L)).thenReturn(teacherUser);
+
+        StepVerifier.create(service.resolveBroadcast(new BroadcastAudienceRequest(
+                        4L, BroadcastScope.SCHOOL, null, null, BroadcastAudience.ALL)))
+                .expectErrorSatisfies(error -> {
+                    assertThat(error).isInstanceOf(BusinessException.class);
+                    assertThat(error).hasMessage("Массовую рассылку может делать только учитель или администратор");
+                })
+                .verify();
+        StepVerifier.create(service.resolveBroadcast(new BroadcastAudienceRequest(
+                        2L, BroadcastScope.CLASS, null, null, BroadcastAudience.STUDENTS)))
+                .expectErrorMessage("Для рассылки по классу нужен classId")
+                .verify();
+        StepVerifier.create(service.resolveBroadcast(new BroadcastAudienceRequest(
+                        2L, BroadcastScope.PARALLEL, null, null, BroadcastAudience.STUDENTS)))
+                .expectErrorMessage("Для рассылки по параллели нужен year")
+                .verify();
+    }
+
+    @Test
+    void supervisorHasNoGradeScope() {
+        User supervisor = user(1L, "Supervisor", UserRole.SUPERVISOR);
+        when(userService.requireUser(1L)).thenReturn(supervisor);
+
+        StepVerifier.create(service.resolveGradeScope(1L))
+                .expectErrorMessage("У администратора нет оценок")
+                .verify();
     }
 
     private static User user(Long id, String name, UserRole role) {

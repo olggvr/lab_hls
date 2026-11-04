@@ -104,4 +104,40 @@ class AssignmentServicesIntegrationTest {
                 .expectErrorMessage("Домашнее задание id=" + first.id() + " не найдено")
                 .verify();
     }
+
+    @Test
+    void rejectsDuplicateSubmissionWithoutBreakingReactiveTransaction() {
+        when(userClient.resolveAssignment(any())).thenReturn(Mono.just(new AssignmentReferenceResponse(
+                13L, 23L, "Teacher", 33L, "9A", 43L, "Chemistry")));
+        when(userClient.resolveStudent(any())).thenReturn(Mono.just(new StudentReferenceResponse(
+                53L, 63L, "Student", 33L)));
+
+        var assignment = assignmentService.create(new AssignmentCreateRequest(
+                13L, 33L, 43L, "Lab", "Description", LocalDate.now().plusDays(5))).block();
+        var request = new SubmissionCreateRequest(53L, "https://files.test/duplicate.pdf");
+        assertThat(assignment).isNotNull();
+        submissionService.submit(assignment.id(), request).block();
+
+        StepVerifier.create(submissionService.submit(assignment.id(), request))
+                .expectErrorMessage("Ученик уже отправил решение этого задания")
+                .verify();
+        assertThat(submissionService.list(assignment.id()).collectList().block()).hasSize(1);
+    }
+
+    @Test
+    void reportsMissingAssignmentAndMissingStudentSubmission() {
+        when(userClient.resolveAssignment(any())).thenReturn(Mono.just(new AssignmentReferenceResponse(
+                14L, 24L, "Teacher", 34L, "10A", 44L, "Biology")));
+        var assignment = assignmentService.create(new AssignmentCreateRequest(
+                14L, 34L, 44L, "Essay", null, LocalDate.now().plusDays(6))).block();
+        assertThat(assignment).isNotNull();
+
+        StepVerifier.create(submissionService.submit(Long.MAX_VALUE,
+                        new SubmissionCreateRequest(54L, "https://files.test/missing.pdf")))
+                .expectErrorMessage("Домашнее задание id=" + Long.MAX_VALUE + " не найдено")
+                .verify();
+        StepVerifier.create(submissionService.gradingContext(assignment.id(), 999L))
+                .expectErrorMessage("Решение ученика id=999 по заданию id=" + assignment.id() + " не найдено")
+                .verify();
+    }
 }

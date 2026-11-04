@@ -74,14 +74,13 @@ services:
     <<: *app
     build:
       context: .
-      args: {MODULE: infrastructure/config-server}
+      dockerfile: infrastructure/config-server/Dockerfile
     depends_on:
       eureka-server: {condition: service_healthy}
     environment:
       EUREKA_URL: http://eureka-server:8761/eureka/
-      CONFIG_GIT_URI: file:/config-source/.git
+      CONFIG_GIT_URI: file:/config-repo
       CONFIG_GIT_LABEL: main
-    volumes: [./:/config-source:ro]
     ports: ["${CONFIG_PORT:-8888}:8888"]
     healthcheck:
       <<: *health

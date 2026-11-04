@@ -79,16 +79,9 @@ services:
       eureka-server: {condition: service_healthy}
     environment:
       EUREKA_URL: http://eureka-server:8761/eureka/
-      CONFIG_GIT_URI: file:/tmp/config-source
+      CONFIG_GIT_URI: file:/config-source/.git
       CONFIG_GIT_LABEL: main
-    volumes: [./:/config-source-readonly:ro]
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - >-
-        rm -rf /tmp/config-source &&
-        mkdir -p /tmp/config-source &&
-        cp -R /config-source-readonly/.git /tmp/config-source/.git &&
-        exec java -jar /app/app.jar
+    volumes: [./:/config-source:ro]
     ports: ["${CONFIG_PORT:-8888}:8888"]
     healthcheck:
       <<: *health

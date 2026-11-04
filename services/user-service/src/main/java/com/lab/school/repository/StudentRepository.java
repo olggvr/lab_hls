@@ -9,6 +9,10 @@ import java.util.Optional;
 
 public interface StudentRepository extends JpaRepository<Student, Long> {
 
+    @Override
+    @EntityGraph(attributePaths = {"user", "schoolClass"})
+    Optional<Student> findById(Long id);
+
     boolean existsByUserId(Long userId);
 
     Optional<Student> findByUserId(Long userId);

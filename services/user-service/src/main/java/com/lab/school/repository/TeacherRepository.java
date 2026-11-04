@@ -1,11 +1,16 @@
 package com.lab.school.repository;
 
 import com.lab.school.entity.Teacher;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
 
 public interface TeacherRepository extends JpaRepository<Teacher, Long> {
+
+    @Override
+    @EntityGraph(attributePaths = "user")
+    Optional<Teacher> findById(Long id);
 
     boolean existsByUserId(Long userId);
 

@@ -210,6 +210,6 @@ mvn clean verify
 - `config-repo/<service>/application.yml` — отдельный профиль каждого бизнес-сервиса;
 - `config-repo/api-gateway/application.yml` — маршруты Gateway и агрегация OpenAPI.
 
-Config Server ищет конфигурацию по шаблону
-`config-repo/common,config-repo/{application}`, поэтому запрос
+Config Server упаковывает этот каталог как изолированный Git-репозиторий и ищет
+конфигурацию в нём по шаблону `common,{application}`, поэтому запрос
 `/assignment-service/default` объединяет общий и сервисный файлы.

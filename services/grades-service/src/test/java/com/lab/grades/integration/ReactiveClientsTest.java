@@ -43,7 +43,7 @@ class ReactiveClientsTest {
 
     @Test
     void messageClientReturnsNonBlockingFallback() {
-        MessageClient client = new MessageClient(
+        MessageClient client = new ReactiveMessageClient(
                 WebClient.builder().exchangeFunction(request -> Mono.error(new IllegalStateException("offline"))),
                 passThroughCircuitBreaker());
 

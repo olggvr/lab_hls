@@ -4,6 +4,7 @@ import com.lab.grades.domain.GradeEntity;
 import com.lab.grades.integration.GradeScopeResponse;
 import com.lab.grades.integration.GradingContextResponse;
 import com.lab.grades.repository.GradeRepository;
+import com.lab.grades.validation.DomainValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +16,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class GradePersistenceService {
     private final GradeRepository gradeRepository;
+    private final DomainValidator domainValidator;
 
     @Transactional
     public GradeEntity save(GradingContextResponse context, int value) {
@@ -30,6 +32,7 @@ public class GradePersistenceService {
         grade.setSubmittedAt(context.submittedAt());
         grade.setGrade(value);
         grade.setGradedAt(LocalDateTime.now());
+        domainValidator.validate(grade);
         return gradeRepository.saveAndFlush(grade);
     }
 

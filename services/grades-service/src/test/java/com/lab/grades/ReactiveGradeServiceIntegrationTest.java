@@ -9,6 +9,7 @@ import com.lab.grades.integration.MessageClient;
 import com.lab.grades.integration.NotificationResponse;
 import com.lab.grades.integration.UserClient;
 import com.lab.grades.service.ReactiveGradeService;
+import jakarta.validation.ConstraintViolationException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -74,5 +75,18 @@ class ReactiveGradeServiceIntegrationTest {
         StepVerifier.create(service.listForUser(4L))
                 .assertNext(entry -> assertThat(entry.grade()).isEqualTo(5))
                 .verifyComplete();
+    }
+
+    @Test
+    void rejectsInvalidDomainDataFromAssignmentService() {
+        when(assignmentClient.gradingContext(2L, 11L)).thenReturn(Mono.just(new GradingContextResponse(
+                101L, 2L, 11L, "", "https://files.test/b.pdf", LocalDateTime.now(),
+                21L, 3L, "Teacher", "Homework", "Math")));
+        when(userClient.gradeAudience(11L)).thenReturn(new GradeAudienceResponse(
+                11L, "Student", List.of(5L)));
+
+        StepVerifier.create(service.grade(2L, new GradeRequest(11L, 4)))
+                .expectError(ConstraintViolationException.class)
+                .verify();
     }
 }

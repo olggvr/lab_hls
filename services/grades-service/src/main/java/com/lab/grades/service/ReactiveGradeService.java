@@ -43,9 +43,8 @@ public class ReactiveGradeService {
     public Flux<GradeEntryResponse> listForUser(Long userId) {
         return Mono.fromCallable(() -> userClient.gradeScope(userId))
                 .subscribeOn(Schedulers.boundedElastic())
-                .flatMap(scope -> Mono.fromCallable(() -> persistenceService.findForScope(scope))
+                .flatMapMany(scope -> Flux.defer(() -> Flux.fromIterable(persistenceService.findForScope(scope)))
                         .subscribeOn(Schedulers.boundedElastic()))
-                .flatMapMany(Flux::fromIterable)
                 .map(this::toEntry);
     }
 

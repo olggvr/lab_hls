@@ -9,6 +9,7 @@ import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpResponse;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,9 +23,8 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.util.List;
-
 @RestController
+@Validated
 @RequiredArgsConstructor
 @RequestMapping("/api/assignments")
 public class AssignmentController {
@@ -39,17 +39,17 @@ public class AssignmentController {
     }
 
     @GetMapping("/page")
-    public Mono<List<AssignmentResponse>> page(
+    public Flux<AssignmentResponse> page(
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(50) int size,
             ServerHttpResponse response) {
-        return assignmentService.page(page, size)
-                .doOnNext(result -> response.getHeaders().set("X-Total-Count", String.valueOf(result.total())))
-                .map(AssignmentService.PagedAssignments::items);
+        return assignmentService.count()
+                .doOnNext(total -> response.getHeaders().set("X-Total-Count", String.valueOf(total)))
+                .thenMany(assignmentService.page(page, size));
     }
 
     @GetMapping("/{id}")
-    public Mono<AssignmentResponse> get(@PathVariable Long id) {
+    public Mono<AssignmentResponse> get(@PathVariable @Positive Long id) {
         return assignmentService.get(id);
     }
 
@@ -61,25 +61,25 @@ public class AssignmentController {
 
     @PutMapping("/{id}")
     public Mono<AssignmentResponse> update(
-            @PathVariable Long id, @Valid @RequestBody AssignmentUpdateRequest request) {
+            @PathVariable @Positive Long id, @Valid @RequestBody AssignmentUpdateRequest request) {
         return assignmentService.update(id, request);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public Mono<Void> delete(@PathVariable Long id) {
+    public Mono<Void> delete(@PathVariable @Positive Long id) {
         return assignmentService.delete(id);
     }
 
     @PostMapping("/{id}/submissions")
     @ResponseStatus(HttpStatus.CREATED)
     public Mono<SubmissionResponse> submit(
-            @PathVariable Long id, @Valid @RequestBody SubmissionCreateRequest request) {
+            @PathVariable @Positive Long id, @Valid @RequestBody SubmissionCreateRequest request) {
         return submissionService.submit(id, request);
     }
 
     @GetMapping("/{id}/submissions")
-    public Flux<SubmissionResponse> submissions(@PathVariable Long id) {
+    public Flux<SubmissionResponse> submissions(@PathVariable @Positive Long id) {
         return submissionService.list(id);
     }
 }

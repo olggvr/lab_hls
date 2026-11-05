@@ -8,6 +8,7 @@ import com.lab.assignment.integration.StudentReferenceResponse;
 import com.lab.assignment.integration.UserClient;
 import com.lab.assignment.service.AssignmentService;
 import com.lab.assignment.service.SubmissionService;
+import jakarta.validation.ConstraintViolationException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -88,7 +89,8 @@ class AssignmentServicesIntegrationTest {
         assertThat(assignmentService.get(first.id()).block().title()).isEqualTo("First");
         assertThat(assignmentService.scroll(null, 1).block().hasNext()).isTrue();
         assertThat(assignmentService.scroll(second.id(), 50).block().items()).isNotEmpty();
-        assertThat(assignmentService.page(-1, 100).block().total()).isGreaterThanOrEqualTo(2);
+        assertThat(assignmentService.count().block()).isGreaterThanOrEqualTo(2);
+        assertThat(assignmentService.page(-1, 100).collectList().block()).hasSizeGreaterThanOrEqualTo(2);
 
         var updated = assignmentService.update(first.id(), new AssignmentUpdateRequest(
                 "Updated", "New description", LocalDate.now().plusDays(4))).block();
@@ -138,6 +140,17 @@ class AssignmentServicesIntegrationTest {
                 .verify();
         StepVerifier.create(submissionService.gradingContext(assignment.id(), 999L))
                 .expectErrorMessage("Решение ученика id=999 по заданию id=" + assignment.id() + " не найдено")
+                .verify();
+    }
+
+    @Test
+    void rejectsInvalidDomainDataReturnedByDownstreamService() {
+        when(userClient.resolveAssignment(any())).thenReturn(Mono.just(new AssignmentReferenceResponse(
+                15L, 25L, "", 35L, "11A", 45L, "Geography")));
+
+        StepVerifier.create(assignmentService.create(new AssignmentCreateRequest(
+                        15L, 35L, 45L, "Map", null, LocalDate.now().plusDays(7))))
+                .expectError(ConstraintViolationException.class)
                 .verify();
     }
 }

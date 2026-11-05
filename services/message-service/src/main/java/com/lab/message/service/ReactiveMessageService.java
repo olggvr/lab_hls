@@ -16,6 +16,7 @@ import com.lab.message.integration.BroadcastAudienceRequest;
 import com.lab.message.integration.DirectAudienceRequest;
 import com.lab.message.repository.MessageRepository;
 import com.lab.message.repository.RecipientRepository;
+import com.lab.message.validation.DomainValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +34,7 @@ public class ReactiveMessageService {
     private final RecipientRepository recipientRepository;
     private final UserClient userClient;
     private final TransactionalOperator transactionalOperator;
+    private final DomainValidator domainValidator;
 
     public Mono<MessageResponse> sendDirect(DirectMessageRequest request) {
         return userClient.resolveDirect(new DirectAudienceRequest(request.senderId(), request.recipientIds()))
@@ -73,6 +75,7 @@ public class ReactiveMessageService {
         return recipientRepository.findByMessageIdAndUserId(messageId, userId)
                 .switchIfEmpty(Mono.error(new NotFoundException("Сообщение не найдено во входящих пользователя")))
                 .map(RecipientEntity::markRead)
+                .doOnNext(domainValidator::validate)
                 .flatMap(recipientRepository::save)
                 .flatMap(recipient -> requireMessage(messageId).map(message -> toInbox(message, recipient)));
     }
@@ -88,13 +91,20 @@ public class ReactiveMessageService {
             AudienceResponse audience, String subject, String body, MessageType type) {
         MessageEntity message = new MessageEntity(
                 audience.senderId(), audience.senderName(), subject, body, type);
+        domainValidator.validate(message);
         List<Long> recipientIds = List.copyOf(new LinkedHashSet<>(audience.recipientIds()));
         return messageRepository.save(message)
                 .flatMap(saved -> recipientRepository.saveAll(
-                                recipientIds.stream().map(id -> new RecipientEntity(saved.id(), id)).toList())
-                        .collectList()
-                        .map(recipients -> toResponse(saved, recipients.size())))
+                                recipientIds.stream().map(id -> validatedRecipient(saved.id(), id)).toList())
+                        .count()
+                        .map(count -> toResponse(saved, count.intValue())))
                 .as(transactionalOperator::transactional);
+    }
+
+    private RecipientEntity validatedRecipient(Long messageId, Long userId) {
+        RecipientEntity recipient = new RecipientEntity(messageId, userId);
+        domainValidator.validate(recipient);
+        return recipient;
     }
 
     private Mono<MessageEntity> requireMessage(Long id) {

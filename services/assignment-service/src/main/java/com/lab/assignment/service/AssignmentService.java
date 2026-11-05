@@ -9,6 +9,7 @@ import com.lab.assignment.exception.NotFoundException;
 import com.lab.assignment.integration.AssignmentReferenceRequest;
 import com.lab.assignment.integration.UserClient;
 import com.lab.assignment.repository.AssignmentRepository;
+import com.lab.assignment.validation.DomainValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,7 @@ import java.util.List;
 public class AssignmentService {
     private final AssignmentRepository assignmentRepository;
     private final UserClient userClient;
+    private final DomainValidator domainValidator;
 
     public Mono<CursorPage<AssignmentResponse>> scroll(Long cursor, int size) {
         int safeSize = Math.max(1, Math.min(size, 50));
@@ -38,14 +40,15 @@ public class AssignmentService {
         });
     }
 
-    public Mono<PagedAssignments> page(int page, int size) {
+    public Flux<AssignmentResponse> page(int page, int size) {
         int safePage = Math.max(page, 0);
         int safeSize = Math.max(1, Math.min(size, 50));
-        return Mono.zip(
-                assignmentRepository.findAllByOrderByIdDesc(PageRequest.of(safePage, safeSize))
-                        .map(this::toResponse).collectList(),
-                assignmentRepository.count(),
-                PagedAssignments::new);
+        return assignmentRepository.findAllByOrderByIdDesc(PageRequest.of(safePage, safeSize))
+                .map(this::toResponse);
+    }
+
+    public Mono<Long> count() {
+        return assignmentRepository.count();
     }
 
     public Mono<AssignmentResponse> get(Long id) {
@@ -55,10 +58,14 @@ public class AssignmentService {
     public Mono<AssignmentResponse> create(AssignmentCreateRequest request) {
         return userClient.resolveAssignment(new AssignmentReferenceRequest(
                         request.teacherId(), request.classId(), request.subjectId()))
-                .flatMap(reference -> assignmentRepository.save(new AssignmentEntity(
-                        null, reference.teacherId(), reference.teacherUserId(), reference.teacherName(),
-                        reference.classId(), reference.className(), reference.subjectId(), reference.subjectName(),
-                        request.title(), request.description(), request.dueDate(), LocalDateTime.now())))
+                .flatMap(reference -> {
+                    AssignmentEntity assignment = new AssignmentEntity(
+                            null, reference.teacherId(), reference.teacherUserId(), reference.teacherName(),
+                            reference.classId(), reference.className(), reference.subjectId(), reference.subjectName(),
+                            request.title(), request.description(), request.dueDate(), LocalDateTime.now());
+                    domainValidator.validate(assignment);
+                    return assignmentRepository.save(assignment);
+                })
                 .map(this::toResponse);
     }
 
@@ -68,6 +75,7 @@ public class AssignmentService {
                     assignment.setTitle(request.title());
                     assignment.setDescription(request.description());
                     assignment.setDueDate(request.dueDate());
+                    domainValidator.validate(assignment);
                     return assignmentRepository.save(assignment);
                 })
                 .map(this::toResponse);
@@ -86,8 +94,5 @@ public class AssignmentService {
         return new AssignmentResponse(entity.getId(), entity.getTeacherId(), entity.getTeacherName(),
                 entity.getClassId(), entity.getClassName(), entity.getSubjectId(), entity.getSubjectName(),
                 entity.getTitle(), entity.getDescription(), entity.getDueDate(), entity.getCreatedAt());
-    }
-
-    public record PagedAssignments(List<AssignmentResponse> items, long total) {
     }
 }

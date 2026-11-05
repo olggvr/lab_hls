@@ -10,6 +10,7 @@ import com.lab.message.integration.AudienceResponse;
 import com.lab.message.integration.DirectAudienceRequest;
 import com.lab.message.exception.DownstreamUnavailableException;
 import com.lab.message.service.ReactiveMessageService;
+import jakarta.validation.ConstraintViolationException;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import org.junit.jupiter.api.Test;
@@ -114,6 +115,17 @@ class ReactiveMessageServiceIntegrationTest {
         service.deleteMessage(broadcast.id()).block();
         StepVerifier.create(service.getMessage(broadcast.id()))
                 .expectErrorMessage("Сообщение id=" + broadcast.id() + " не найдено")
+                .verify();
+    }
+
+    @Test
+    void rejectsInvalidDomainDataReturnedByDirectoryService() {
+        when(userClient.resolveDirect(any()))
+                .thenReturn(Mono.just(new AudienceResponse(1L, "", List.of(2L))));
+
+        StepVerifier.create(service.sendDirect(new DirectMessageRequest(
+                        1L, Set.of(2L), "Subject", "Body")))
+                .expectError(ConstraintViolationException.class)
                 .verify();
     }
 

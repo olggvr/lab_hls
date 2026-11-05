@@ -1,12 +1,15 @@
 package com.lab.grades.integration;
 
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cloud.client.circuitbreaker.ReactiveCircuitBreaker;
 import org.springframework.stereotype.Component;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 @Component
+@Validated
 public class MessageClient {
     private final WebClient webClient;
     private final ReactiveCircuitBreaker circuitBreaker;
@@ -17,7 +20,7 @@ public class MessageClient {
         this.circuitBreaker = circuitBreaker;
     }
 
-    public Mono<NotificationResponse> sendGradeNotification(GradeNotificationRequest request) {
+    public Mono<NotificationResponse> sendGradeNotification(@Valid GradeNotificationRequest request) {
         Mono<NotificationResponse> call = webClient.post().uri("/grade-notifications")
                 .bodyValue(request)
                 .retrieve()

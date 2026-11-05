@@ -1,4 +1,9 @@
 package com.lab.school.integration;
 
-public record StudentReferenceRequest(Long studentId, Long classId) {
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+
+public record StudentReferenceRequest(
+        @NotNull @Positive Long studentId,
+        @NotNull @Positive Long classId) {
 }

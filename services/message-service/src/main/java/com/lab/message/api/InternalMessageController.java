@@ -1,6 +1,7 @@
 package com.lab.message.api;
 
 import com.lab.message.service.ReactiveMessageService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -15,7 +16,7 @@ public class InternalMessageController {
     private final ReactiveMessageService messageService;
 
     @PostMapping("/grade-notifications")
-    public Mono<NotificationResponse> notifyGrade(@RequestBody GradeNotificationRequest request) {
+    public Mono<NotificationResponse> notifyGrade(@Valid @RequestBody GradeNotificationRequest request) {
         return messageService.notifyGrade(request);
     }
 }

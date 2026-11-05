@@ -10,6 +10,7 @@ import com.lab.assignment.exception.NotFoundException;
 import com.lab.assignment.integration.StudentReferenceRequest;
 import com.lab.assignment.integration.UserClient;
 import com.lab.assignment.repository.SubmissionRepository;
+import com.lab.assignment.validation.DomainValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.reactive.TransactionalOperator;
@@ -25,6 +26,7 @@ public class SubmissionService {
     private final AssignmentService assignmentService;
     private final UserClient userClient;
     private final TransactionalOperator transactionalOperator;
+    private final DomainValidator domainValidator;
 
     public Mono<SubmissionResponse> submit(Long assignmentId, SubmissionCreateRequest request) {
         return assignmentService.requireAssignment(assignmentId)
@@ -34,10 +36,11 @@ public class SubmissionService {
                                         assignmentId, request.studentId())
                                 .flatMap(exists -> exists
                                         ? Mono.error(new ConflictException("Ученик уже отправил решение этого задания"))
-                                        : submissionRepository.save(new SubmissionEntity(
+                                        : save(new SubmissionEntity(
                                                 null, assignmentId, student.studentId(), student.studentUserId(),
                                                 student.studentName(), request.contentUrl(), LocalDateTime.now(),
                                                 "SUBMITTED")))))
+                // Entity -> DTO is synchronous, so map is correct here; flatMap is for Publisher-returning work.
                 .map(this::toResponse)
                 .as(transactionalOperator::transactional);
     }
@@ -69,5 +72,10 @@ public class SubmissionService {
         return new SubmissionResponse(entity.getId(), entity.getAssignmentId(), entity.getStudentId(),
                 entity.getStudentName(), entity.getContentUrl(), entity.getSubmittedAt(), null,
                 entity.getStatus(), null);
+    }
+
+    private Mono<SubmissionEntity> save(SubmissionEntity submission) {
+        domainValidator.validate(submission);
+        return submissionRepository.save(submission);
     }
 }

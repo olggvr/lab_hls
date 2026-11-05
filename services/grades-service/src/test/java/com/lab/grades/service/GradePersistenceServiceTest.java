@@ -4,6 +4,7 @@ import com.lab.grades.domain.GradeEntity;
 import com.lab.grades.integration.GradeScopeResponse;
 import com.lab.grades.integration.GradingContextResponse;
 import com.lab.grades.repository.GradeRepository;
+import com.lab.grades.validation.DomainValidator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -25,6 +26,8 @@ import static org.mockito.Mockito.when;
 class GradePersistenceServiceTest {
     @Mock
     private GradeRepository repository;
+    @Mock
+    private DomainValidator domainValidator;
 
     @InjectMocks
     private GradePersistenceService service;

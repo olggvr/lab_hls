@@ -17,6 +17,8 @@ import jakarta.persistence.Table;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PastOrPresent;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -41,6 +43,7 @@ public class User {
 
     @NotBlank
     @Size(min = 3, max = 50)
+    @Pattern(regexp = "^[a-zA-Z0-9._-]+$")
     @Column(name = "username", nullable = false, unique = true, length = 50)
     private String username;
 
@@ -56,6 +59,7 @@ public class User {
     private String email;
 
     @Size(max = 20)
+    @Pattern(regexp = "^\\+?[0-9 ()-]{7,20}$", message = "некорректный номер телефона")
     @Column(name = "phone", length = 20)
     private String phone;
 
@@ -65,6 +69,8 @@ public class User {
     private UserRole role;
 
     @Setter(AccessLevel.NONE)
+    @NotNull
+    @PastOrPresent
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

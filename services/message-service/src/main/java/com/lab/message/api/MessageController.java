@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -21,6 +22,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @RestController
+@Validated
 @RequiredArgsConstructor
 @RequestMapping("/api/messages")
 public class MessageController {
@@ -39,7 +41,7 @@ public class MessageController {
     }
 
     @GetMapping("/{id}")
-    public Mono<MessageResponse> getMessage(@PathVariable Long id) {
+    public Mono<MessageResponse> getMessage(@PathVariable @Positive Long id) {
         return messageService.getMessage(id);
     }
 
@@ -53,13 +55,13 @@ public class MessageController {
 
     @PatchMapping("/{id}/read")
     public Mono<InboxItemResponse> markRead(
-            @PathVariable Long id, @RequestParam @Positive Long userId) {
+            @PathVariable @Positive Long id, @RequestParam @Positive Long userId) {
         return messageService.markRead(id, userId);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public Mono<Void> deleteMessage(@PathVariable Long id) {
+    public Mono<Void> deleteMessage(@PathVariable @Positive Long id) {
         return messageService.deleteMessage(id);
     }
 }

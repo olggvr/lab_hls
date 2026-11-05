@@ -25,6 +25,11 @@ spring:
             connectTimeout: 2000
             readTimeout: 3000
 
+app:
+  validation:
+    domain:
+      enabled: ${DOMAIN_VALIDATION_ENABLED:true}
+
 resilience4j:
   circuitbreaker:
     configs:

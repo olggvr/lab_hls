@@ -12,6 +12,8 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
+    properties:
+      jakarta.persistence.validation.mode: callback
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
   jackson:

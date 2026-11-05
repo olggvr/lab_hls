@@ -199,8 +199,16 @@ mvn clean verify
 
 Отчёт каждого сервиса: `services/<service>/target/site/jacoco/index.html`.
 
-> Если системный Maven запущен на JDK новее 21, укажите `JAVA_HOME` на JDK 21. Docker-сборка
-> зафиксирована на Eclipse Temurin 21.
+Maven Toolchains автоматически находит установленный JDK 21 и использует его для
+компиляции и Surefire, даже если сам Maven запущен на более новой Java. Если JDK 21 не
+установлен, сборка завершится понятной ошибкой в фазе `validate`.
+
+Интеграционные тесты используют Testcontainers, поэтому перед их запуском Docker Desktop
+должен быть запущен. Доступность Docker можно проверить командой `docker info`.
+
+> Для запуска JUnit напрямую из IntelliJ IDEA также выберите JDK 21 в `Project Structure →
+> Project SDK`; для Maven Runner выберите `Project SDK`. Docker-сборка зафиксирована на
+> Eclipse Temurin 21.
 
 ## Центральная конфигурация
 

@@ -4,6 +4,8 @@
 своей PostgreSQL БД, регистрируется в Eureka, получает конфигурацию из Config Server и
 доступен клиенту через API Gateway.
 
+Подготовка к защите: [`LAB2_DEFENSE_THEORY.md`](LAB2_DEFENSE_THEORY.md).
+
 ## Архитектура
 
 ```text

@@ -40,7 +40,6 @@ public class SubmissionService {
                                                 null, assignmentId, student.studentId(), student.studentUserId(),
                                                 student.studentName(), request.contentUrl(), LocalDateTime.now(),
                                                 "SUBMITTED")))))
-                // Entity -> DTO is synchronous, so map is correct here; flatMap is for Publisher-returning work.
                 .map(this::toResponse)
                 .as(transactionalOperator::transactional);
     }

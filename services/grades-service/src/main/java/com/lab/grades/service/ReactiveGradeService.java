@@ -6,13 +6,14 @@ import com.lab.grades.api.GradeResponse;
 import com.lab.grades.api.GradedSubmissionResponse;
 import com.lab.grades.domain.GradeEntity;
 import com.lab.grades.integration.AssignmentClient;
+import com.lab.grades.integration.GradeAudienceClient;
 import com.lab.grades.integration.GradeAudienceResponse;
 import com.lab.grades.integration.GradeNotificationRequest;
+import com.lab.grades.integration.GradeScopeClient;
 import com.lab.grades.integration.GradeScopeResponse;
 import com.lab.grades.integration.GradingContextResponse;
 import com.lab.grades.integration.MessageClient;
 import com.lab.grades.integration.NotificationResponse;
-import com.lab.grades.integration.UserClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -23,13 +24,14 @@ import reactor.core.scheduler.Schedulers;
 @RequiredArgsConstructor
 public class ReactiveGradeService {
     private final AssignmentClient assignmentClient;
-    private final UserClient userClient;
+    private final GradeAudienceClient gradeAudienceClient;
+    private final GradeScopeClient gradeScopeClient;
     private final MessageClient messageClient;
     private final GradePersistenceService persistenceService;
 
     public Mono<GradeResponse> grade(Long assignmentId, GradeRequest request) {
         return assignmentClient.gradingContext(assignmentId, request.studentId())
-                .zipWith(Mono.fromCallable(() -> userClient.gradeAudience(request.studentId()))
+                .zipWith(Mono.fromCallable(() -> gradeAudienceClient.gradeAudience(request.studentId()))
                                 .subscribeOn(Schedulers.boundedElastic()),
                         GradeContext::new)
                 .flatMap(context -> Mono.fromCallable(() -> persistenceService.save(context.assignment(), request.grade()))
@@ -41,7 +43,7 @@ public class ReactiveGradeService {
     }
 
     public Flux<GradeEntryResponse> listForUser(Long userId) {
-        return Mono.fromCallable(() -> userClient.gradeScope(userId))
+        return Mono.fromCallable(() -> gradeScopeClient.gradeScope(userId))
                 .subscribeOn(Schedulers.boundedElastic())
                 .flatMapMany(scope -> Flux.defer(() -> Flux.fromIterable(persistenceService.findForScope(scope)))
                         .subscribeOn(Schedulers.boundedElastic()))

@@ -2,12 +2,13 @@ package com.lab.grades;
 
 import com.lab.grades.api.GradeRequest;
 import com.lab.grades.integration.AssignmentClient;
+import com.lab.grades.integration.GradeAudienceClient;
 import com.lab.grades.integration.GradeAudienceResponse;
+import com.lab.grades.integration.GradeScopeClient;
 import com.lab.grades.integration.GradeScopeResponse;
 import com.lab.grades.integration.GradingContextResponse;
 import com.lab.grades.integration.MessageClient;
 import com.lab.grades.integration.NotificationResponse;
-import com.lab.grades.integration.UserClient;
 import com.lab.grades.service.ReactiveGradeService;
 import jakarta.validation.ConstraintViolationException;
 import org.junit.jupiter.api.Test;
@@ -50,7 +51,9 @@ class ReactiveGradeServiceIntegrationTest {
     @MockitoBean
     AssignmentClient assignmentClient;
     @MockitoBean
-    UserClient userClient;
+    GradeAudienceClient gradeAudienceClient;
+    @MockitoBean
+    GradeScopeClient gradeScopeClient;
     @MockitoBean
     MessageClient messageClient;
 
@@ -59,9 +62,9 @@ class ReactiveGradeServiceIntegrationTest {
         when(assignmentClient.gradingContext(1L, 10L)).thenReturn(Mono.just(new GradingContextResponse(
                 100L, 1L, 10L, "Student", "https://files.test/a.pdf", LocalDateTime.now(),
                 20L, 2L, "Teacher", "Homework", "Math")));
-        when(userClient.gradeAudience(10L)).thenReturn(new GradeAudienceResponse(
+        when(gradeAudienceClient.gradeAudience(10L)).thenReturn(new GradeAudienceResponse(
                 10L, "Student", List.of(4L, 7L)));
-        when(userClient.gradeScope(4L)).thenReturn(new GradeScopeResponse("STUDENT", List.of(10L), null));
+        when(gradeScopeClient.gradeScope(4L)).thenReturn(new GradeScopeResponse("STUDENT", List.of(10L), null));
         when(messageClient.sendGradeNotification(any())).thenReturn(Mono.just(new NotificationResponse(500L, 2, true)));
 
         StepVerifier.create(service.grade(1L, new GradeRequest(10L, 5)))
@@ -82,7 +85,7 @@ class ReactiveGradeServiceIntegrationTest {
         when(assignmentClient.gradingContext(2L, 11L)).thenReturn(Mono.just(new GradingContextResponse(
                 101L, 2L, 11L, "", "https://files.test/b.pdf", LocalDateTime.now(),
                 21L, 3L, "Teacher", "Homework", "Math")));
-        when(userClient.gradeAudience(11L)).thenReturn(new GradeAudienceResponse(
+        when(gradeAudienceClient.gradeAudience(11L)).thenReturn(new GradeAudienceResponse(
                 11L, "Student", List.of(5L)));
 
         StepVerifier.create(service.grade(2L, new GradeRequest(11L, 4)))
